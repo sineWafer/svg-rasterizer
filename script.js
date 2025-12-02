@@ -8,11 +8,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
   const widthInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-width'));
   const heightInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-height'));
+  const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
   const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
 
   const context = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
   const img = new Image();
+  let lastUsedSizeInput = widthInput;
   let fileName = 'img';
 
   function aspectRatio() {
@@ -21,8 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function rerender() {
-    const width = widthInput.value.length === 0 ? defaultSizeOnInvalid : Number(widthInput.value);
-    const height = heightInput.value.length === 0 ? defaultSizeOnInvalid : Number(heightInput.value);
+    const width = Math.max(1, widthInput.value.length === 0 ? defaultSizeOnInvalid : Number(widthInput.value));
+    const height = Math.max(1, heightInput.value.length === 0 ? defaultSizeOnInvalid : Number(heightInput.value));
 
     canvas.width = width;
     canvas.height = height;
@@ -54,39 +56,54 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /**
-   * @param {HTMLInputElement} element 
-   * @param {boolean} isWidth 
-   * @param {HTMLInputElement} otherElement 
+   * @param {HTMLInputElement?} sizeInput 
+   * @param {boolean} allowEmpty 
    */
-  function applySizeInput(element, isWidth, otherElement) {
-    let str = element.value.replaceAll(/[^\d.]/g, '');
+  function applySizeInputChange(sizeInput = null, allowEmpty = true) {
+    sizeInput ??= lastUsedSizeInput;
+    lastUsedSizeInput = sizeInput;
+    const isWidth = sizeInput === widthInput;
+    const otherSizeInput = isWidth ? heightInput : widthInput;
+
+    let str = sizeInput.value.replaceAll(/[^\d.]/g, '');
     const slices = str.split('.');
     str = slices.slice(0, 2).join('.') + slices.slice(2).join();
 
-    let dimension = str.length === 0 ? defaultSizeOnInvalid : Number(str);
+    let dimension = str.length === 0 ? defaultSizeOnInvalid : Math.floor(Number(str));
     if (dimension > maxSize) {
       dimension = maxSize;
       str = String(dimension);
     }
 
-    let otherDimension = isWidth ? dimension * aspectRatio() : dimension / aspectRatio();
-    if (otherDimension > maxSize) {
-      otherDimension = maxSize;
-      dimension = isWidth ? otherDimension / aspectRatio() : otherDimension * aspectRatio();
-      str = String(dimension);
+    if (lockAspectInput.checked || otherSizeInput.value.length === 0) {
+      let otherDimension = Math.floor(isWidth ? dimension * aspectRatio() : dimension / aspectRatio());
+      if (otherDimension > maxSize) {
+        otherDimension = maxSize;
+        dimension = Math.floor(isWidth ? otherDimension / aspectRatio() : otherDimension * aspectRatio());
+        str = String(dimension);
+      }
+  
+      otherSizeInput.value = String(otherDimension);
     }
 
-    element.value = str;
-    otherElement.value = String(otherDimension);
+    sizeInput.value = (str.length !== 0 || !allowEmpty) ? String(dimension) : str;
+
+    rerender();
   }
 
-  widthInput.addEventListener('input', () => {
-    applySizeInput(widthInput, true, heightInput);
-    rerender();
+  widthInput.addEventListener('input', () => applySizeInputChange(widthInput));
+  widthInput.addEventListener('focusout', () => {
+    if (widthInput.value.length === 0) {
+      applySizeInputChange(widthInput, false);
+    }
   });
 
-  heightInput.addEventListener('input', () => {
-    applySizeInput(heightInput, false, widthInput);
-    rerender();
+  heightInput.addEventListener('input', () => applySizeInputChange(heightInput));
+  heightInput.addEventListener('focusout', () => {
+    if (heightInput.value.length === 0) {
+      applySizeInputChange(heightInput, false);
+    }
   });
+
+  lockAspectInput.addEventListener('change', () => applySizeInputChange());
 });
