@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let fileName = 'img';
 
   function aspectRatio() {
-    const ratio = img.width / img.height;
+    const ratio = img.height / img.width;
     return isNaN(ratio) ? 1 : ratio;
   }
 
@@ -41,8 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
   fileInput.addEventListener('change', loadImage);
 
   img.addEventListener('load', () => {
-    widthInput.value = '' + img.width;
-    heightInput.value = '' + img.height;
+    widthInput.value = String(img.width);
+    heightInput.value = String(img.height);
     rerender();
   });
 
@@ -59,17 +59,25 @@ document.addEventListener('DOMContentLoaded', () => {
    * @param {HTMLInputElement} otherElement 
    */
   function applySizeInput(element, isWidth, otherElement) {
-    const str = element.value.replaceAll(/[^\d]/g, '');
-    let dimension = str.length === 0 ? defaultSizeOnInvalid : Math.min(maxSize, Number(str));
+    let str = element.value.replaceAll(/[^\d.]/g, '');
+    const slices = str.split('.');
+    str = slices.slice(0, 2).join('.') + slices.slice(2).join();
+
+    let dimension = str.length === 0 ? defaultSizeOnInvalid : Number(str);
+    if (dimension > maxSize) {
+      dimension = maxSize;
+      str = String(dimension);
+    }
 
     let otherDimension = isWidth ? dimension * aspectRatio() : dimension / aspectRatio();
     if (otherDimension > maxSize) {
       otherDimension = maxSize;
       dimension = isWidth ? otherDimension / aspectRatio() : otherDimension * aspectRatio();
+      str = String(dimension);
     }
 
-    element.value = str.length === 0 ? '' : '' + dimension;
-    otherElement.value = '' + otherDimension;
+    element.value = str;
+    otherElement.value = String(otherDimension);
   }
 
   widthInput.addEventListener('input', () => {
