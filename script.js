@@ -29,7 +29,19 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.width = width;
     canvas.height = height;
     context.drawImage(img, 0, 0, width, height);
+
+    const disableInputs = img.src.length === 0;
+    widthInput.disabled = disableInputs;
+    heightInput.disabled = disableInputs;
+    lockAspectInput.disabled = disableInputs;
+    saveButton.disabled = disableInputs;
+    if (disableInputs) {
+      widthInput.value = '';
+      heightInput.value = '';
+      lockAspectInput.checked = true;
+    }
   }
+  rerender();
 
   function loadImage() {
     const file = fileInput.files?.[0];
