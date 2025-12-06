@@ -1,8 +1,8 @@
 // @ts-check
 
 document.addEventListener('DOMContentLoaded', () => {
-  const maxSize = 5000;
-  const defaultSizeOnInvalid = 300;
+  const MAX_IMAGE_SIZE = 5000;
+  const DEFAULT_IMAGE_SIZE = 300;
 
   const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
   const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
@@ -16,15 +16,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const img = new Image();
   let lastUsedSizeInput = widthInput;
   let fileName = 'img';
+  let imageLoadedInitial = false;
 
   function aspectRatio() {
     const ratio = img.height / img.width;
     return isNaN(ratio) ? 1 : ratio;
   }
 
+  /**
+   * @param {number} dimension 
+   */
+  function clampImageDimension(dimension) {
+    return Math.max(1, Math.min(MAX_IMAGE_SIZE, dimension));
+  }
+
   function rerender() {
-    const width = Math.max(1, widthInput.value.length === 0 ? defaultSizeOnInvalid : Number(widthInput.value));
-    const height = Math.max(1, heightInput.value.length === 0 ? defaultSizeOnInvalid : Number(heightInput.value));
+    /**
+     * @param {HTMLInputElement} input 
+     */
+    function parseDimension(input) {
+      return clampImageDimension(input.value.length === 0 ? DEFAULT_IMAGE_SIZE : Number(input.value));
+    }
+
+    const width = parseDimension(widthInput);
+    const height = parseDimension(heightInput);
 
     canvas.width = width;
     canvas.height = height;
@@ -35,29 +50,34 @@ document.addEventListener('DOMContentLoaded', () => {
     heightInput.disabled = disableInputs;
     lockAspectInput.disabled = disableInputs;
     saveButton.disabled = disableInputs;
+
     if (disableInputs) {
       widthInput.value = '';
       heightInput.value = '';
       lockAspectInput.checked = true;
     }
   }
-  rerender();
 
-  function loadImage() {
+  async function loadImageAndRerender() {
     const file = fileInput.files?.[0];
     if (!file) return;
 
     img.src = URL.createObjectURL(file);
     fileName = file.name;
-  }
-  loadImage();
 
-  fileInput.addEventListener('change', loadImage);
+    rerender();
+  }
+
+  fileInput.addEventListener('change', loadImageAndRerender);
 
   img.addEventListener('load', () => {
-    widthInput.value = String(img.width);
-    heightInput.value = String(img.height);
+    if (imageLoadedInitial) {
+      widthInput.value = String(img.width);
+      heightInput.value = String(img.height);
+    }
+    
     rerender();
+    imageLoadedInitial = true;
   });
 
   saveButton.addEventListener('click', () => {
@@ -81,16 +101,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const slices = str.split('.');
     str = slices.slice(0, 2).join('.') + slices.slice(2).join();
 
-    let dimension = str.length === 0 ? defaultSizeOnInvalid : Math.floor(Number(str));
-    if (dimension > maxSize) {
-      dimension = maxSize;
+    let dimension = str.length === 0 ? DEFAULT_IMAGE_SIZE : Math.floor(Number(str));
+    if (dimension > MAX_IMAGE_SIZE) {
+      dimension = MAX_IMAGE_SIZE;
       str = String(dimension);
     }
 
     if (lockAspectInput.checked || otherSizeInput.value.length === 0) {
       let otherDimension = Math.floor(isWidth ? dimension * aspectRatio() : dimension / aspectRatio());
-      if (otherDimension > maxSize) {
-        otherDimension = maxSize;
+      if (otherDimension > MAX_IMAGE_SIZE) {
+        otherDimension = MAX_IMAGE_SIZE;
         dimension = Math.floor(isWidth ? otherDimension / aspectRatio() : otherDimension * aspectRatio());
         str = String(dimension);
       }
@@ -118,4 +138,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   lockAspectInput.addEventListener('change', () => applySizeInputChange());
+
+  sandboxIFrame.addEventListener('load', loadImageAndRerender);
 });
