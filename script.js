@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sandboxIFrame.addEventListener('load', () => {
     const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
+    const sandboxWindow = /** @type {window} */ (sandboxIFrame.contentWindow);
 
     const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
     const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
@@ -16,27 +17,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
     const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
+    const svgDefaultsContainer = /** @type {SVGSVGElement} */ (document.querySelector('#svg-defaults-container'));
 
     const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
     const xmlSerializer = new XMLSerializer();
     const image = new Image();
-    /** @type {SVGSVGElement?} */ let svg = null;
+    /** @type {string?} */ let svgContent = null;
     let originalWidth = 1;
     let originalHeight = 1;
-    let originalSvgStyleTransform = '';
     let lastUsedSizeInput = widthInput;
     let fileName = 'img';
-    let initialImageLoad = true;
 
     function reset() {
       fileInput.value = '';
       image.src = '';
       sandboxSvgContainer.innerHTML = '';
-      svg = null;
+      svgContent = null;
       originalWidth = 1;
       originalHeight = 1;
-      originalSvgStyleTransform = '';
       widthInput.value = '';
       heightInput.value = '';
       lockAspectInput.checked = true;
@@ -54,6 +53,34 @@ document.addEventListener('DOMContentLoaded', () => {
       return Math.max(1, Math.min(MAX_IMAGE_SIZE, dimension));
     }
 
+    /** @type {{ [tagName: string]: CSSStyleDeclaration | undefined }} */
+    let svgElementsDefaultComputedStyleCache = {};
+
+    /**
+     * @param {string} tagName 
+     */
+    function getSvgDefaultStyles(tagName) {
+      tagName = tagName.toLowerCase();
+
+      let styles = svgElementsDefaultComputedStyleCache[tagName];
+      if (styles !== undefined) return styles;
+
+      const element = sandboxDocument.createElementNS('http://www.w3.org/2000/svg', tagName);
+      svgDefaultsContainer.appendChild(element);
+      styles = sandboxWindow.getComputedStyle(element);
+      svgElementsDefaultComputedStyleCache[tagName] = styles;
+      return styles;
+    }
+
+    /**
+     * @param {SVGSVGElement} svg 
+     */
+    function getAllSvgAnimationElements(svg) {
+      return svg.querySelectorAll(
+        'animate, animateTransform, animateMotion, animateColor, set, discard'
+      );
+    }
+
     /**
      * @param {'update' | 'apply svg change' | 'apply svg change keep dimensions'} mode 
      */
@@ -68,13 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
       let width = parseDimension(widthInput);
       let height = parseDimension(heightInput);
 
-      if (svg === null) {
+      if (svgContent === null) {
         image.src = '';
       } else {
-        /**
-         * @param {SVGSVGElement} svg 
-         */
-        function svgToImageSource(svg) {
+        sandboxSvgContainer.innerHTML = svgContent;
+        const svg = /** @type {SVGSVGElement} */ (sandboxSvgContainer.children[0]);
+        svg.pauseAnimations();
+        svg.setCurrentTime(0);
+
+        const svgAnimationElements = getAllSvgAnimationElements(svg);
+        const isAnimatedSvg = svgAnimationElements.length > 0;
+
+        function svgToImageSource() {
           const svgString = xmlSerializer.serializeToString(svg);
           const blob = new Blob([svgString], { type: 'image/svg+xml' });
           return URL.createObjectURL(blob);
@@ -82,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (mode !== 'update') {
           const testImage = new Image();
-          testImage.src = svgToImageSource(svg);
+          testImage.src = svgToImageSource();
 
           await new Promise(resolve => testImage.onload = resolve);
 
@@ -97,11 +129,35 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        const scaleY = originalWidth / (originalHeight * (width / height));
-        svg.style.transform = originalSvgStyleTransform +
-          (scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`);
+        if (isAnimatedSvg) {
+          // The current visual attribute values need to be realized as actual attributes to appear when rendered onto
+          // the canvas
+          for (const element of svg.querySelectorAll('*')) {
+            const computedStyle = sandboxWindow.getComputedStyle(element);
+            const defaults = getSvgDefaultStyles(element.tagName);
 
-        image.src = svgToImageSource(svg);
+            for (const attributeName in computedStyle) {
+              if (!/[^\d]/.test(attributeName)) continue;
+              const attributeValue = computedStyle[attributeName];
+              if (typeof attributeValue === 'function') continue;
+              if (attributeValue === defaults[attributeName]) continue;
+
+              try {
+                element.setAttribute(attributeName, attributeValue);
+              } catch (e) { }
+            }
+          }
+
+          // The renderer will use some values from animation elements if they are not removed
+          for (const element of svgAnimationElements) {
+            element.remove();
+          }
+        }
+
+        const scaleY = originalWidth / (originalHeight * (width / height));
+        svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
+
+        image.src = svgToImageSource();
 
         await new Promise(resolve => image.addEventListener('load', resolve, { once: true }));
       }
@@ -110,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
       canvas.height = height;
       renderingContext.drawImage(image, 0, 0, width, height);
 
-      const disableInputs = svg === null;
+      const disableInputs = svgContent === null;
       widthInput.disabled = disableInputs;
       heightInput.disabled = disableInputs;
       lockAspectInput.disabled = disableInputs;
@@ -123,10 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    async function loadImageAndRerender() {
-      const isInitialImageLoad = initialImageLoad;
-      initialImageLoad = false;
-
+    async function loadImageAndRerender(isInitialImageLoad = false) {
       const file = fileInput.files?.[0];
 
       if (!file) {
@@ -137,21 +190,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
       fileName = file.name;
 
-      /** @type {string?} */ let svgData = null;
       try {
         // Might fail if the file isn't at the original location anymore after the page reloads
-        svgData = await file.text();
+        svgContent = await file.text();
       } catch (e) {
-        svgData = null;
+        svgContent = null;
       }
 
-      if (svgData !== null) {
-        sandboxSvgContainer.innerHTML = svgData;
+      if (svgContent !== null) {
+        sandboxSvgContainer.innerHTML = svgContent;
       }
 
       const children = sandboxSvgContainer.children;
 
-      if (svgData === null) {
+      if (svgContent === null) {
         reset();
         rerender('apply svg change');
       } else if (
@@ -163,15 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
         rerender('apply svg change');
         window.alert('The chosen file is not a valid SVG.');
       } else {
-        svg = /** @type {SVGSVGElement} */ (children[0]);
-        svg.pauseAnimations();
-        originalSvgStyleTransform = svg.style.transform;
-
         rerender(isInitialImageLoad ? 'apply svg change keep dimensions' : 'apply svg change')
       }
     }
 
-    fileInput.addEventListener('change', loadImageAndRerender);
+    fileInput.addEventListener('change', () => loadImageAndRerender());
 
     saveButton.addEventListener('click', () => {
       const link = document.createElement('a');
@@ -233,6 +281,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     lockAspectInput.addEventListener('change', () => applySizeInputChange());
 
-    loadImageAndRerender();
+    loadImageAndRerender(true);
   });
 });
