@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * @param {'update' | 'apply svg change' | 'apply svg change keep dimensions'} mode 
+     * @param {'update' | 'apply svg change' | 'apply svg change keep settings'} mode 
      */
     async function rerender(mode = 'update') {
       /**
@@ -81,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (svgAnimationElements.length > 0) {
           isAnimatedSvg = true;
         }
-        const enableSvgAnimation = isAnimatedSvg && enableAnimationInput.checked;
 
         async function loadSvgIntoImage() {
           const svgString = xmlSerializer.serializeToString(svg);
@@ -96,16 +95,17 @@ document.addEventListener('DOMContentLoaded', () => {
           originalWidth = image.width;
           originalHeight = image.height;
 
-          // Keep dimensions mode is to preserver user settings on page reload. Only works on Firefox.
-          if (mode !== 'apply svg change keep dimensions') {
+          // Keep settings mode is to preserve user settings on page reload. Only works on Firefox.
+          if (mode !== 'apply svg change keep settings') {
             widthInput.value = String(originalWidth);
             heightInput.value = String(originalHeight);
             width = originalWidth;
             height = originalHeight;
+            enableAnimationInput.checked = isAnimatedSvg;
           }
         }
 
-        if (enableSvgAnimation) {
+        if (isAnimatedSvg && enableAnimationInput.checked) {
           lib.applySvgAnimation(svg);
         }
 
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rerender('apply svg change');
         window.alert('The chosen file is not a valid SVG.');
       } else {
-        rerender(isInitialImageLoad ? 'apply svg change keep dimensions' : 'apply svg change')
+        rerender(isInitialImageLoad ? 'apply svg change keep settings' : 'apply svg change')
       }
     }
 
