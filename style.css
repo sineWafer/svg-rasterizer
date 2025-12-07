@@ -1,4 +1,4 @@
 #main-canvas {
-    background-image: url('res/canvas-background.svg');
+    background-image: url('/res/canvas-background.svg');
     background-size: 64px;
 }

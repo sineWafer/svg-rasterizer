@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>SVG Rasterizer</title>
-  <link rel="icon" href="favicon.svg">
-  <link rel="stylesheet" href="style.css">
-  <script src="script.js"></script>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/lib/svg.js"></script>
+  <script src="/control.js"></script>
 </head>
 <body>
   <input id="setting-file" type="file" accept="image/svg+xml"><br>
@@ -22,6 +23,10 @@
     Lock Aspect Ratio
   </label><br>
   <span id="show-size-other"></span><br>
+  <label>
+    <input type="checkbox" id="setting-enable-animation">
+    Enable animation
+  </label><br>
   <button id="save">Save</button><br>
   <canvas id="main-canvas"></canvas>
   <iframe
@@ -30,8 +35,5 @@
     src="sandbox.html"
     style="position: absolute; opacity: 0;"
   ></iframe>
-  <div style="display: none;">
-    <svg id="svg-defaults-container" xmlns="http://www.w3.org/2000/svg"></svg>
-  </div>
 </body>
 </html>

@@ -1,7 +1,7 @@
 // @ts-check
 
 document.addEventListener('DOMContentLoaded', () => {
-  const MAX_IMAGE_SIZE = 5000;
+  const MAX_IMAGE_SIZE = 4096;
   const DEFAULT_IMAGE_SIZE = 300;
 
   const sandboxIFrame = /** @type {HTMLIFrameElement} */ (document.getElementById('sandbox'));
@@ -15,9 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const widthInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-width'));
     const heightInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-height'));
     const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
+    const enableAnimationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-enable-animation'));
     const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
-    const svgDefaultsContainer = /** @type {SVGSVGElement} */ (document.querySelector('#svg-defaults-container'));
 
     const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
       widthInput.value = '';
       heightInput.value = '';
       lockAspectInput.checked = true;
+      enableAnimationInput.checked = false;
     }
 
     function aspectRatio() {
@@ -51,34 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function clampImageDimension(dimension) {
       return Math.max(1, Math.min(MAX_IMAGE_SIZE, dimension));
-    }
-
-    /** @type {{ [tagName: string]: CSSStyleDeclaration | undefined }} */
-    let svgElementsDefaultComputedStyleCache = {};
-
-    /**
-     * @param {string} tagName 
-     */
-    function getSvgDefaultStyles(tagName) {
-      tagName = tagName.toLowerCase();
-
-      let styles = svgElementsDefaultComputedStyleCache[tagName];
-      if (styles !== undefined) return styles;
-
-      const element = sandboxDocument.createElementNS('http://www.w3.org/2000/svg', tagName);
-      svgDefaultsContainer.appendChild(element);
-      styles = sandboxWindow.getComputedStyle(element);
-      svgElementsDefaultComputedStyleCache[tagName] = styles;
-      return styles;
-    }
-
-    /**
-     * @param {SVGSVGElement} svg 
-     */
-    function getAllSvgAnimationElements(svg) {
-      return svg.querySelectorAll(
-        'animate, animateTransform, animateMotion, animateColor, set, discard'
-      );
     }
 
     /**
@@ -94,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       let width = parseDimension(widthInput);
       let height = parseDimension(heightInput);
+      let isAnimatedSvg = false;
 
       if (svgContent === null) {
         image.src = '';
@@ -103,24 +77,26 @@ document.addEventListener('DOMContentLoaded', () => {
         svg.pauseAnimations();
         svg.setCurrentTime(0);
 
-        const svgAnimationElements = getAllSvgAnimationElements(svg);
-        const isAnimatedSvg = svgAnimationElements.length > 0;
+        const svgAnimationElements = lib.getAllSvgAnimationElements(svg);
+        if (svgAnimationElements.length > 0) {
+          isAnimatedSvg = true;
+        }
+        const enableSvgAnimation = isAnimatedSvg && enableAnimationInput.checked;
 
-        function svgToImageSource() {
+        async function loadSvgIntoImage() {
           const svgString = xmlSerializer.serializeToString(svg);
           const blob = new Blob([svgString], { type: 'image/svg+xml' });
-          return URL.createObjectURL(blob);
+          image.src = URL.createObjectURL(blob);
+          await new Promise(resolve => image.addEventListener('load', resolve, { once: true }));
         }
 
         if (mode !== 'update') {
-          const testImage = new Image();
-          testImage.src = svgToImageSource();
+          await loadSvgIntoImage();
 
-          await new Promise(resolve => testImage.onload = resolve);
+          originalWidth = image.width;
+          originalHeight = image.height;
 
-          originalWidth = testImage.width;
-          originalHeight = testImage.height;
-
+          // Keep dimensions mode is to preserver user settings on page reload. Only works on Firefox.
           if (mode !== 'apply svg change keep dimensions') {
             widthInput.value = String(originalWidth);
             heightInput.value = String(originalHeight);
@@ -129,37 +105,19 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        if (isAnimatedSvg) {
-          // The current visual attribute values need to be realized as actual attributes to appear when rendered onto
-          // the canvas
-          for (const element of svg.querySelectorAll('*')) {
-            const computedStyle = sandboxWindow.getComputedStyle(element);
-            const defaults = getSvgDefaultStyles(element.tagName);
+        if (enableSvgAnimation) {
+          lib.applySvgAnimation(svg);
+        }
 
-            for (const attributeName in computedStyle) {
-              if (!/[^\d]/.test(attributeName)) continue;
-              const attributeValue = computedStyle[attributeName];
-              if (typeof attributeValue === 'function') continue;
-              if (attributeValue === defaults[attributeName]) continue;
-
-              try {
-                element.setAttribute(attributeName, attributeValue);
-              } catch (e) { }
-            }
-          }
-
-          // The renderer will use some values from animation elements if they are not removed
-          for (const element of svgAnimationElements) {
-            element.remove();
-          }
+        // The renderer will use some values from animation elements if they are not removed
+        for (const element of svgAnimationElements) {
+          element.remove();
         }
 
         const scaleY = originalWidth / (originalHeight * (width / height));
         svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
 
-        image.src = svgToImageSource();
-
-        await new Promise(resolve => image.addEventListener('load', resolve, { once: true }));
+        await loadSvgIntoImage();
       }
 
       canvas.width = width;
@@ -167,15 +125,20 @@ document.addEventListener('DOMContentLoaded', () => {
       renderingContext.drawImage(image, 0, 0, width, height);
 
       const disableInputs = svgContent === null;
+
       widthInput.disabled = disableInputs;
       heightInput.disabled = disableInputs;
       lockAspectInput.disabled = disableInputs;
+      enableAnimationInput.disabled = disableInputs || !isAnimatedSvg;
       saveButton.disabled = disableInputs;
 
       if (disableInputs) {
         widthInput.value = '';
         heightInput.value = '';
         lockAspectInput.checked = true;
+      }
+      if (enableAnimationInput.disabled) {
+        enableAnimationInput.checked = false;
       }
     }
 
@@ -280,6 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     lockAspectInput.addEventListener('change', () => applySizeInputChange());
+
+    enableAnimationInput.addEventListener('change', () => rerender())
 
     loadImageAndRerender(true);
   });
