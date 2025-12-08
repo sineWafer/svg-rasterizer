@@ -5,29 +5,100 @@
   <title>SVG Rasterizer</title>
   <link rel="icon" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
+  <script src="/lib/util.js"></script>
   <script src="/lib/svg.js"></script>
   <script src="/control.js"></script>
 </head>
 <body>
-  <input id="setting-file" type="file" accept="image/svg+xml"><br>
+  <input type="file" id="setting-file" accept="image/svg+xml">
+  <br>
   <label>
     Width
-    <input id="setting-width">
-  </label><br>
+    <input type="text" id="setting-width">
+  </label>
   <label>
     Height
-    <input id="setting-height">
-  </label><br>
+    <input type="text" id="setting-height">
+  </label>
+  <br>
   <label>
     <input type="checkbox" id="setting-lock-aspect" checked>
     Lock Aspect Ratio
-  </label><br>
-  <span id="show-size-other"></span><br>
+  </label>
+  <br>
+  <span id="show-size-other"></span>
+  <br>
   <label>
     <input type="checkbox" id="setting-enable-animation">
     Enable animation
-  </label><br>
-  <button id="save">Save</button><br>
+  </label>
+  <br>
+  <table class="animation-control">
+    <tbody>
+      <tr>
+        <td>
+          <label for="setting-animation-start-time">
+            Start time
+          </label>
+        </td>
+        <td>
+          <input type="text" id="setting-animation-start-time" pattern="">
+        </td>
+        <td>
+          <label>
+            <input type="radio" id="setting-lock-animation-start-time" name="animation-timing-lock">
+            Lock
+          </label>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <label for="setting-animation-duration">
+            Duration
+          </label>
+        </td>
+        <td>
+          <input type="text" id="setting-animation-duration">
+        </td>
+        <td>
+          <label>
+            <input type="radio" id="setting-lock-animation-duration" name="animation-timing-lock">
+            Lock
+          </label>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <label for="setting-animation-end-time">
+            End time
+          </label>
+        </td>
+        <td>
+          <input type="text" id="setting-animation-end-time">
+        </td>
+        <td>
+          <label>
+            <input type="radio" id="setting-lock-animation-end-time" name="animation-timing-lock">
+            Lock
+          </label>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <label class="animation-control">
+    FPS
+    <input type="text" id="setting-animation-fps">
+  </label>
+  <label class="animation-control">
+    Total frames
+    <input type="text" id="setting-animation-total-frames">
+  </label>
+  <br>
+  <!-- TODO frame alignment -->
+  <input type="range" id="setting-animation-time" class="animation-control" step="1" min="0">
+  <br>
+  <button id="save">Save</button>
+  <br>
   <canvas id="main-canvas"></canvas>
   <iframe
     id="sandbox"
