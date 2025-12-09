@@ -87,24 +87,27 @@
       </tr>
     </tbody>
   </table>
-  <label class="animation-control">
-    FPS
-    <input type="text" id="setting-animation-fps">
-  </label>
-  <label class="animation-control">
-    Total frames
-    <input type="text" id="setting-animation-total-frames">
-  </label>
-  <br>
+  <div class="animation-control">
+    <label>
+      FPS
+      <input type="text" id="setting-animation-fps">
+    </label>
+    <label>
+      Total frames
+      <input type="text" id="setting-animation-total-frames">
+    </label>
+  </div>
+  <div class="animation-control">
+    <button id="view-animation-play-pause">Play/Pause</button>
+    <input type="range" id="view-animation-time" step="1" min="1">
+    <label>
+      Frame
+      <input type="text" id="view-animation-time-value">
+    </label>
+  </div>
   <!-- TODO frame alignment -->
-  <button id="view-animation-play-pause" class="animation-control">Play/Pause</button>
-  <input type="range" id="view-animation-time" class="animation-control" step="1" min="1">
-  <label>
-    Frame
-    <input type="text" id="view-animation-time-value" class="animation-control">
-  </label>
-  <br>
   <button id="save">Save</button>
+  <button id="save-sequence" class="animation-control">Save sequence</button>
   <br>
   <canvas id="main-canvas"></canvas>
   <iframe id="sandbox" sandbox="allow-same-origin" src="sandbox.html" style="position: absolute; opacity: 0;"></iframe>

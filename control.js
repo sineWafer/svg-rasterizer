@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const animationTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time'));
     const animationTimeValueInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time-value'));
     const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
+    const saveSequenceButton = /** @type {HTMLButtonElement} */ (document.getElementById('save-sequence'));
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
 
     /**
@@ -55,10 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastUsedAnimationFrameInput = animationFpsInput;
     let fileName = 'img';
 
-    /** @type {number?} */ let playAnimIntervalHandle = null;
-    function animationPlaying() { return playAnimIntervalHandle !== null };
+    /** @type {number?} */ let playAnimTimeoutHandle = null;
+    function animationPlaying() { return playAnimTimeoutHandle !== null };
 
-    const animationInputs = [
+    const allControls = [
+      fileInput,
+      widthInput,
+      heightInput,
+      lockAspectInput,
       enableAnimationInput,
       ...Object.values(animTimingInputs).flatMap(v => [v.value, v.lock]),
       animationFpsInput,
@@ -66,6 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
       animationPlayPauseButton,
       animationTimeInput,
       animationTimeValueInput,
+      saveButton,
+      saveSequenceButton,
     ];
 
     function reset() {
@@ -75,7 +82,6 @@ document.addEventListener('DOMContentLoaded', () => {
       svgContent = null;
       originalWidth = 1;
       originalHeight = 1;
-      playAnimIntervalHandle = null;
       widthInput.value = '';
       heightInput.value = '';
       lockAspectInput.checked = true;
@@ -90,6 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
       animationTotalFramesInput.value = String(DEFAULT_ANIMATION_DURATION * DEFAULT_FPS);
       animationTimeInput.value = '1';
       updateAnimationTimeInputFromDuration(DEFAULT_ANIMATION_DURATION);
+      pauseAnimation();
     }
 
     function aspectRatio() {
@@ -99,8 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * @param {'update' | 'apply svg change' | 'apply svg change keep settings'} mode 
+     * @param {boolean} setControlStatuses 
      */
-    async function rerender(mode = 'update') {
+    async function rerender(mode = 'update', setControlStatuses = true) {
       /**
        * @param {HTMLInputElement} input 
        */
@@ -175,6 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       animationTimeValueInput.value = animationTimeInput.value;
 
+      if (!setControlStatuses) return;
+
       const disableInputs = svgContent === null;
       const disableAnimationInputs = disableInputs || !isAnimatedSvg;
 
@@ -206,7 +216,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      fileName = file.name;
+      const fileNameMatch = /^(.*?)\.[^.]*$/.exec(file.name);
+      fileName = fileNameMatch?.[1] ?? file.name;
 
       try {
         // Might fail if the file isn't at the original location anymore after the page reloads
@@ -239,11 +250,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fileInput.addEventListener('change', () => loadImageAndRerender());
 
-    saveButton.addEventListener('click', () => {
+    function saveCurrent(fileNameSuffix = '') {
       const link = document.createElement('a');
       link.href = canvas.toDataURL();
-      link.download = fileName;
+      link.download = fileName + fileNameSuffix;
       link.click();
+    }
+
+    saveButton.addEventListener('click', () => saveCurrent());
+
+    saveSequenceButton.addEventListener('click', async () => {
+      const frameCount = Number(animationTimeInput.max);
+
+      if (frameCount === 1) {
+        saveCurrent();
+        return;
+      }
+
+      const controlsActiveState = allControls.map(c => ({ control: c, disabled: c.disabled }));
+      for (const c of allControls) {
+        c.disabled = true;
+      }
+
+      const suffixLength = String(frameCount).length;
+
+      /**
+       * @param {number} frame 
+       */
+      function doUpdate(frame) {
+        saveCurrent(`-${String(frame).padStart(suffixLength, '0')}`);
+
+        if (frame < Number(animationTimeInput.max)) return;
+
+        for (const state of controlsActiveState) {
+          state.control.disabled = state.disabled;
+        }
+
+        pauseAnimation();
+        rerender();
+      }
+
+      animationTimeInput.value = '1';
+      doUpdate(1);
+
+      playAnimation('all frames', doUpdate);
     });
 
     /**
@@ -543,43 +593,55 @@ document.addEventListener('DOMContentLoaded', () => {
     animationTotalFramesInput.addEventListener('focusout', () => handleAnimationTotalFramesInput(false));
     
     /**
-     * @param {boolean} skipFramesToKeepAnimationRealTime 
+     * @param {'all frames' | 'real time'} mode 
+     * @param {((frame: number) => void) | null} onFrameRendered 
      */
-    function playAnimation(skipFramesToKeepAnimationRealTime) {
-      if (playAnimIntervalHandle !== null) {
+    function playAnimation(mode, onFrameRendered = null) {
+      if (playAnimTimeoutHandle !== null) {
         pauseAnimation();
       }
 
       animationTimeValueInput.disabled = true;
 
       let timeMs = performance.now();
-      
-      playAnimIntervalHandle = setInterval(() => {
+
+      async function renderFrame() {
         const currentTimeMs = performance.now();
         const deltaMs = currentTimeMs - timeMs;
         const msPerFrame = 1000 / handleAnimationFpsInput(true, false);
         
-        if (deltaMs < msPerFrame) {
+        if (mode === 'all frames' || deltaMs >= msPerFrame) {
+          const frameDelta = mode === 'all frames' ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
+          timeMs += msPerFrame * frameDelta;
+    
+          let frame = Number(animationTimeInput.value) + frameDelta;
+          if (frame > Number(animationTimeInput.max)) {
+            frame = 1;
+          }
+          animationTimeInput.value = String(frame);
+    
+          await rerender('update', false);
+          onFrameRendered?.(frame);
+        }
+
+        // If pauseAnimation() has been called, this will be null
+        if (playAnimTimeoutHandle === null) return;
+
+        if (!enableAnimationInput.checked) {
+          playAnimTimeoutHandle = null;
           return;
         }
 
-        const frameDelta = !skipFramesToKeepAnimationRealTime ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
-        timeMs += msPerFrame * frameDelta;
-
-        let frame = Number(animationTimeInput.value) + frameDelta;
-        if (frame > Number(animationTimeInput.max)) {
-          frame = 1;
-        }
-        animationTimeInput.value = String(frame);
-
-        rerender();
-      });
+        playAnimTimeoutHandle = setTimeout(renderFrame);
+      }
+      
+      playAnimTimeoutHandle = setTimeout(renderFrame);
     }
 
     function pauseAnimation() {
-      if (playAnimIntervalHandle === null) return;
-      clearInterval(playAnimIntervalHandle);
-      playAnimIntervalHandle = null;
+      if (playAnimTimeoutHandle === null) return;
+      clearTimeout(playAnimTimeoutHandle);
+      playAnimTimeoutHandle = null;
       animationTimeValueInput.disabled = false;
     }
 
@@ -587,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (animationPlaying()) {
         pauseAnimation();
       } else {
-        playAnimation(true);
+        playAnimation('real time');
       }
     });
 
