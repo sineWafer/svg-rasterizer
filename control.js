@@ -23,7 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const enableAnimationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-enable-animation'));
     const animationFpsInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-fps'));
     const animationTotalFramesInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-total-frames'));
-    const animationTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-time'));
+    const animationPlayPauseButton = /** @type {HTMLButtonElement} */ (document.getElementById('view-animation-play-pause'));
+    const animationTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time'));
+    const animationTimeValueInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time-value'));
     const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
 
@@ -53,12 +55,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastUsedAnimationFrameInput = animationFpsInput;
     let fileName = 'img';
 
+    /** @type {number?} */ let playAnimIntervalHandle = null;
+    function animationPlaying() { return playAnimIntervalHandle !== null };
+
     const animationInputs = [
       enableAnimationInput,
       ...Object.values(animTimingInputs).flatMap(v => [v.value, v.lock]),
       animationFpsInput,
       animationTotalFramesInput,
+      animationPlayPauseButton,
       animationTimeInput,
+      animationTimeValueInput,
     ];
 
     function reset() {
@@ -68,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
       svgContent = null;
       originalWidth = 1;
       originalHeight = 1;
+      playAnimIntervalHandle = null;
       widthInput.value = '';
       heightInput.value = '';
       lockAspectInput.checked = true;
@@ -80,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
       animTimingInputs.end.lock.checked = false;
       animationFpsInput.value = String(DEFAULT_FPS);
       animationTotalFramesInput.value = String(DEFAULT_ANIMATION_DURATION * DEFAULT_FPS);
+      animationTimeInput.value = '1';
       updateAnimationTimeInputFromDuration(DEFAULT_ANIMATION_DURATION);
     }
 
@@ -164,6 +173,8 @@ document.addEventListener('DOMContentLoaded', () => {
       canvas.height = height;
       renderingContext.drawImage(image, 0, 0, width, height);
 
+      animationTimeValueInput.value = animationTimeInput.value;
+
       const disableInputs = svgContent === null;
       const disableAnimationInputs = disableInputs || !isAnimatedSvg;
 
@@ -172,9 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
       lockAspectInput.disabled = disableInputs;
       saveButton.disabled = disableInputs;
 
-      for (const input of animationInputs) {
-        input.disabled = disableAnimationInputs;
-      }
+      enableAnimationInput.disabled = disableAnimationInputs;
 
       if (disableInputs) {
         widthInput.value = '';
@@ -183,7 +192,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (disableAnimationInputs) {
         enableAnimationInput.checked = false;
-        animationTimeInput.value = '0';
+        animationTimeInput.value = '1';
+        pauseAnimation();
       }
     }
 
@@ -300,6 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     lockAspectInput.addEventListener('change', () => handleSizeInputChange());
+
+    enableAnimationInput.addEventListener('change', () => rerender());
 
     if (!Object.values(animTimingInputs).some(inputs => inputs.lock.checked)) {
       animTimingInputs.start.lock.checked = true;
@@ -529,8 +541,82 @@ document.addEventListener('DOMContentLoaded', () => {
 
     animationTotalFramesInput.addEventListener('input', () => handleAnimationTotalFramesInput(true));
     animationTotalFramesInput.addEventListener('focusout', () => handleAnimationTotalFramesInput(false));
+    
+    /**
+     * @param {boolean} skipFramesToKeepAnimationRealTime 
+     */
+    function playAnimation(skipFramesToKeepAnimationRealTime) {
+      if (playAnimIntervalHandle !== null) {
+        pauseAnimation();
+      }
+
+      animationTimeValueInput.disabled = true;
+
+      let timeMs = performance.now();
+      
+      playAnimIntervalHandle = setInterval(() => {
+        const currentTimeMs = performance.now();
+        const deltaMs = currentTimeMs - timeMs;
+        const msPerFrame = 1000 / handleAnimationFpsInput(true, false);
+        
+        if (deltaMs < msPerFrame) {
+          return;
+        }
+
+        const frameDelta = !skipFramesToKeepAnimationRealTime ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
+        timeMs += msPerFrame * frameDelta;
+
+        let frame = Number(animationTimeInput.value) + frameDelta;
+        if (frame > Number(animationTimeInput.max)) {
+          frame = 1;
+        }
+        animationTimeInput.value = String(frame);
+
+        rerender();
+      });
+    }
+
+    function pauseAnimation() {
+      if (playAnimIntervalHandle === null) return;
+      clearInterval(playAnimIntervalHandle);
+      playAnimIntervalHandle = null;
+      animationTimeValueInput.disabled = false;
+    }
+
+    animationPlayPauseButton.addEventListener('click', () => {
+      if (animationPlaying()) {
+        pauseAnimation();
+      } else {
+        playAnimation(true);
+      }
+    });
 
     animationTimeInput.addEventListener('input', () => rerender());
+
+    /**
+     * @param {boolean} allowInvalid 
+     */
+    function handleAnimationTimeValueInput(allowInvalid) {
+      pauseAnimation();
+
+      const sanitizedValue = sanitizeNumberInput(animationTimeValueInput.value, false);
+      let frame = sanitizedValue;
+
+      if (frame === null) {
+        if (allowInvalid) return;
+        frame = 1;
+      }
+
+      if (!allowInvalid) {
+        frame = lib.util.clamp(frame, 1, Number(animationTimeInput.max));
+      }
+      
+      animationTimeValueInput.value = !allowInvalid ? String(frame) : sanitizedValue === null ? '' : String(sanitizedValue);
+      animationTimeInput.value = String(frame);
+    }
+
+    animationTimeValueInput.addEventListener('input', () => handleAnimationTimeValueInput(true));
+    animationTimeValueInput.addEventListener('focusout', () => handleAnimationTimeValueInput(false));
 
     {
       const storeLastUsedAnimationInput = lastUsedAnimationFrameInput;

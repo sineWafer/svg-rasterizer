@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>SVG Rasterizer</title>
@@ -9,6 +10,7 @@
   <script src="/lib/svg.js"></script>
   <script src="/control.js"></script>
 </head>
+
 <body>
   <input type="file" id="setting-file" accept="image/svg+xml">
   <br>
@@ -95,16 +97,17 @@
   </label>
   <br>
   <!-- TODO frame alignment -->
-  <input type="range" id="setting-animation-time" class="animation-control" step="1" min="0">
+  <button id="view-animation-play-pause" class="animation-control">Play/Pause</button>
+  <input type="range" id="view-animation-time" class="animation-control" step="1" min="1">
+  <label>
+    Frame
+    <input type="text" id="view-animation-time-value" class="animation-control">
+  </label>
   <br>
   <button id="save">Save</button>
   <br>
   <canvas id="main-canvas"></canvas>
-  <iframe
-    id="sandbox"
-    sandbox="allow-same-origin"
-    src="sandbox.html"
-    style="position: absolute; opacity: 0;"
-  ></iframe>
+  <iframe id="sandbox" sandbox="allow-same-origin" src="sandbox.html" style="position: absolute; opacity: 0;"></iframe>
 </body>
+
 </html>
