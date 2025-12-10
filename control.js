@@ -250,20 +250,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fileInput.addEventListener('change', () => loadImageAndRerender());
 
-    function saveCurrent(fileNameSuffix = '') {
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL();
-      link.download = fileName + fileNameSuffix;
-      link.click();
+    /**
+     * @returns {Promise<Blob>} 
+     */
+    function getFrameBlob() {
+      return new Promise(resolve => {
+        // FUTURE: file format and quality
+        canvas.toBlob(blob => resolve(/** @type {Blob} */(blob)));
+      });
     }
 
-    saveButton.addEventListener('click', () => saveCurrent());
+    async function saveCurrentFrame(fileNameSuffix = '') {
+      lib.util.saveFile(await getFrameBlob(), fileName + fileNameSuffix);
+    }
+
+    saveButton.addEventListener('click', () => saveCurrentFrame());
 
     saveSequenceButton.addEventListener('click', async () => {
       const frameCount = Number(animationTimeInput.max);
 
       if (frameCount === 1) {
-        saveCurrent();
+        await saveCurrentFrame();
         return;
       }
 
@@ -272,13 +279,15 @@ document.addEventListener('DOMContentLoaded', () => {
         c.disabled = true;
       }
 
+      const zipWriter = new lib.zip.ZipWriter();
       const suffixLength = String(frameCount).length;
 
       /**
        * @param {number} frame 
        */
-      function doUpdate(frame) {
-        saveCurrent(`-${String(frame).padStart(suffixLength, '0')}`);
+      async function doUpdate(frame) {
+        const blob = await getFrameBlob();
+        await zipWriter.appendFile(blob, `frame-${String(frame).padStart(suffixLength, '0')}.png`);
 
         if (frame < Number(animationTimeInput.max)) return;
 
@@ -288,6 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         pauseAnimation();
         rerender();
+
+        lib.util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
       }
 
       animationTimeInput.value = '1';
@@ -592,10 +603,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     animationTotalFramesInput.addEventListener('input', () => handleAnimationTotalFramesInput(true));
     animationTotalFramesInput.addEventListener('focusout', () => handleAnimationTotalFramesInput(false));
-    
+
     /**
      * @param {'all frames' | 'real time'} mode 
-     * @param {((frame: number) => void) | null} onFrameRendered 
+     * @param {((frame: number) => void | Promise<any>) | null} onFrameRendered 
      */
     function playAnimation(mode, onFrameRendered = null) {
       if (playAnimTimeoutHandle !== null) {
@@ -610,19 +621,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentTimeMs = performance.now();
         const deltaMs = currentTimeMs - timeMs;
         const msPerFrame = 1000 / handleAnimationFpsInput(true, false);
-        
+
         if (mode === 'all frames' || deltaMs >= msPerFrame) {
           const frameDelta = mode === 'all frames' ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
           timeMs += msPerFrame * frameDelta;
-    
+
           let frame = Number(animationTimeInput.value) + frameDelta;
           if (frame > Number(animationTimeInput.max)) {
             frame = 1;
           }
           animationTimeInput.value = String(frame);
-    
+
           await rerender('update', false);
-          onFrameRendered?.(frame);
+          const result = onFrameRendered?.(frame);
+          if (typeof result === 'object') {
+            await result;
+          }
         }
 
         // If pauseAnimation() has been called, this will be null
@@ -635,7 +649,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playAnimTimeoutHandle = setTimeout(renderFrame);
       }
-      
+
       playAnimTimeoutHandle = setTimeout(renderFrame);
     }
 
@@ -673,7 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!allowInvalid) {
         frame = lib.util.clamp(frame, 1, Number(animationTimeInput.max));
       }
-      
+
       animationTimeValueInput.value = !allowInvalid ? String(frame) : sanitizedValue === null ? '' : String(sanitizedValue);
       animationTimeInput.value = String(frame);
 
