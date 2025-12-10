@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
           lib.util.clamp(Number(animationFpsInput.value), MIN_FPS, MAX_FPS);
         const currentFrame = Number(animationTimeInput.value);
 
-        svg.setCurrentTime(timingVals.start + currentFrame / fps);
+        svg.setCurrentTime(timingVals.start + (currentFrame - 1) / fps);
 
         const svgAnimationElements = lib.svg.getAllAnimationElements(svg);
         if (svgAnimationElements.length > 0) {
@@ -291,7 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       animationTimeInput.value = '1';
-      doUpdate(1);
+      await rerender();
+      await doUpdate(1);
 
       playAnimation('all frames', doUpdate);
     });
@@ -675,6 +676,8 @@ document.addEventListener('DOMContentLoaded', () => {
       
       animationTimeValueInput.value = !allowInvalid ? String(frame) : sanitizedValue === null ? '' : String(sanitizedValue);
       animationTimeInput.value = String(frame);
+
+      rerender();
     }
 
     animationTimeValueInput.addEventListener('input', () => handleAnimationTimeValueInput(true));
