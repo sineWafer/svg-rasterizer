@@ -36,58 +36,15 @@
     Enable animation
   </label>
   <br>
-  <table class="animation-control">
-    <tbody>
-      <tr>
-        <td>
-          <label for="setting-animation-start-time">
-            Start time
-          </label>
-        </td>
-        <td>
-          <input type="text" id="setting-animation-start-time" pattern="">
-        </td>
-        <td>
-          <label>
-            <input type="radio" id="setting-lock-animation-start-time" name="animation-timing-lock">
-            Lock
-          </label>
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label for="setting-animation-duration">
-            Duration
-          </label>
-        </td>
-        <td>
-          <input type="text" id="setting-animation-duration">
-        </td>
-        <td>
-          <label>
-            <input type="radio" id="setting-lock-animation-duration" name="animation-timing-lock">
-            Lock
-          </label>
-        </td>
-      </tr>
-      <tr>
-        <td>
-          <label for="setting-animation-end-time">
-            End time
-          </label>
-        </td>
-        <td>
-          <input type="text" id="setting-animation-end-time">
-        </td>
-        <td>
-          <label>
-            <input type="radio" id="setting-lock-animation-end-time" name="animation-timing-lock">
-            Lock
-          </label>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <label class="animation-control">
+    Start time
+    <input type="text" id="setting-animation-start-time">
+  </label>
+  <label class="animation-control">
+    Duration
+    <input type="text" id="setting-animation-duration">
+  </label>
+  <br>
   <div class="animation-control">
     <label>
       FPS
@@ -100,13 +57,12 @@
   </div>
   <div class="animation-control">
     <button id="view-animation-play-pause">Play/Pause</button>
-    <input type="range" id="view-animation-time" step="1" min="1">
+    <input type="range" id="view-animation-frame" step="1" min="1">
     <label>
       Frame
-      <input type="text" id="view-animation-time-value">
+      <input type="text" id="view-animation-frame-value">
     </label>
   </div>
-  <!-- TODO frame alignment -->
   <button id="save">Save</button>
   <button id="save-sequence" class="animation-control">Save sequence</button>
   <br>

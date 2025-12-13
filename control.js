@@ -1,6 +1,6 @@
 // @ts-check
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const MAX_IMAGE_SIZE = 4096;
   const DEFAULT_IMAGE_SIZE = 300;
   const EPSILON = 0.000001;
@@ -8,700 +8,536 @@ document.addEventListener('DOMContentLoaded', () => {
   const DEFAULT_FPS = 30;
   const MIN_FPS = 0.001;
   const MAX_FPS = 65536;
-  const CLOCK_VALUE_VALIDITY_DESCRIPTION = 'Use e.g. 70 or 70s or 70000ms or 01:10';
 
+  const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
+  const widthInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-width'));
+  const heightInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-height'));
+  const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
+  const enableAnimationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-enable-animation'));
+  const animationStartTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-start-time'));
+  const animationDurationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-duration'));
+  const animationFpsInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-fps'));
+  const animationTotalFramesInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-total-frames'));
+  const animationPlayPauseButton = /** @type {HTMLButtonElement} */ (document.getElementById('view-animation-play-pause'));
+  const animationFrameInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-frame'));
+  const animationFrameValueInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-frame-value'));
+  const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
+  const saveSequenceButton = /** @type {HTMLButtonElement} */ (document.getElementById('save-sequence'));
+  const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
   const sandboxIFrame = /** @type {HTMLIFrameElement} */ (document.getElementById('sandbox'));
 
-  sandboxIFrame.addEventListener('load', () => {
-    const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
+  if (sandboxIFrame.loading) {
+    await new Promise(resolve => sandboxIFrame.addEventListener('load', resolve, { once: true }));
+  }
 
-    const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
-    const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
-    const widthInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-width'));
-    const heightInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-height'));
-    const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
-    const enableAnimationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-enable-animation'));
-    const animationFpsInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-fps'));
-    const animationTotalFramesInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-total-frames'));
-    const animationPlayPauseButton = /** @type {HTMLButtonElement} */ (document.getElementById('view-animation-play-pause'));
-    const animationTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time'));
-    const animationTimeValueInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-time-value'));
-    const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
-    const saveSequenceButton = /** @type {HTMLButtonElement} */ (document.getElementById('save-sequence'));
-    const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
+  const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
+  const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
+  const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
-    /**
-     * @param {string} name 
-     */
-    function qAnimationTimingInput(name) {
-      return {
-        value: /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-' + name)),
-        lock: /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-animation-' + name)),
-      };
+  const xmlSerializer = new XMLSerializer();
+  const image = new Image();
+
+  /** @type {string?} */ let svgContent;
+  /** @type {number} */ let originalWidth;
+  /** @type {number} */ let originalHeight;
+  /** @type {HTMLInputElement} */ let lastUsedSizeInput;
+  /** @type {HTMLInputElement} */ let lastUsedFrameInput;
+  /** @type {string} */ let fileName;
+  /** @type {number?} */ let playAnimTimeoutHandle;
+  function animationPlaying() { return playAnimTimeoutHandle !== null; }
+
+  function resetVars() {
+    svgContent = null;
+    originalWidth = 1;
+    originalHeight = 1;
+    lastUsedSizeInput = widthInput;
+    lastUsedFrameInput = animationFpsInput;
+    fileName = 'img';
+    playAnimTimeoutHandle = null;
+  }
+  resetVars();
+
+  /**
+   * @type {{
+   *   width: number,
+   *   height: number,
+   *   animationStartTime: number, // Offset from 0 in seconds
+   *   animationDuration: number, // In seconds
+   *   animationTotalFrames: number, // Maintained and displayed as float, floored as needed
+   *   animationDisplayFrame: number, // Starts at 1
+   * }}
+   */
+  const ctrlValues = /** @type {any} */ ({});
+
+  function resetCtrlValues() {
+    ctrlValues.width = lib.util.parsePositiveInt(widthInput) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.height = lib.util.parsePositiveInt(heightInput) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.animationStartTime = lib.util.parseOffsetValue(animationStartTimeInput)?.seconds ?? 0;
+    ctrlValues.animationDuration = lib.util.parseOffsetValue(animationDurationInput)?.seconds ?? DEFAULT_ANIMATION_DURATION;
+    ctrlValues.animationTotalFrames = lib.util.parsePositiveInt(animationTotalFramesInput)
+      ?? DEFAULT_ANIMATION_DURATION * DEFAULT_FPS;
+    ctrlValues.animationDisplayFrame = lib.util.parsePositiveInt(animationFrameValueInput) ?? 1;
+  }
+  resetCtrlValues();
+
+  const animationControls = [
+    animationStartTimeInput,
+    animationDurationInput,
+    animationFpsInput,
+    animationTotalFramesInput,
+    animationPlayPauseButton,
+    animationFrameInput,
+    animationFrameValueInput,
+    saveSequenceButton,
+  ];
+
+  const allControlsExceptFileInputs = [
+    widthInput,
+    heightInput,
+    lockAspectInput,
+    enableAnimationInput,
+    ...animationControls,
+    saveButton,
+  ];
+
+  const allControls = [
+    fileInput,
+    ...allControlsExceptFileInputs,
+  ];
+
+  function reset() {
+    resetVars();
+    fileInput.value = '';
+    image.src = '';
+    sandboxSvgContainer.innerHTML = '';
+    widthInput.value = '';
+    heightInput.value = '';
+    lockAspectInput.checked = true;
+    enableAnimationInput.checked = false;
+    enableAnimationInput.disabled = true;
+    animationStartTimeInput.value = '0s';
+    animationDurationInput.value = `${DEFAULT_ANIMATION_DURATION}s`;
+    animationFpsInput.value = String(DEFAULT_FPS);
+    const totalFramesStr = String(DEFAULT_ANIMATION_DURATION * DEFAULT_FPS);
+    animationTotalFramesInput.value = totalFramesStr;
+    animationFrameInput.value = '1';
+    animationFrameInput.max = totalFramesStr;
+    resetCtrlValues();
+    for (const c of allControlsExceptFileInputs) c.disabled = true;
+  }
+
+  function resetCurrentFrame() {
+    animationFrameInput.max = String(ctrlValues.animationTotalFrames);
+    animationFrameInput.value = '1';
+    animationFrameValueInput.value = '1';
+    ctrlValues.animationDisplayFrame = 1;
+  }
+
+  function aspectRatio() {
+    const ratio = originalWidth / originalHeight;
+    return isNaN(ratio) ? 1 : ratio;
+  }
+
+  /**
+   * @param {HTMLInputElement} input 
+   * @param {boolean} overrideInputValue 
+   */
+  async function handleSizeInput(input, overrideInputValue) {
+    const isWidth = input === widthInput;
+
+    let value = lib.util.parsePositiveInt(input) ?? DEFAULT_IMAGE_SIZE;
+
+    if (value > MAX_IMAGE_SIZE) {
+      value = MAX_IMAGE_SIZE;
     }
-    const animTimingInputs = {
-      start: qAnimationTimingInput('start-time'),
-      duration: qAnimationTimingInput('duration'),
-      end: qAnimationTimingInput('end-time'),
-    };
 
-    const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
+    if (lockAspectInput.checked) {
+      const valueToOtherValue = isWidth ? 1 / aspectRatio() : aspectRatio();
+      let otherValue = valueToOtherValue * value;
 
-    const xmlSerializer = new XMLSerializer();
-    const image = new Image();
-    /** @type {string?} */ let svgContent = null;
-    let originalWidth = 1;
-    let originalHeight = 1;
-    let lastUsedSizeInput = widthInput;
-    let lastUsedAnimationFrameInput = animationFpsInput;
-    let fileName = 'img';
+      if (otherValue > MAX_IMAGE_SIZE) {
+        otherValue = MAX_IMAGE_SIZE;
+        value = otherValue / valueToOtherValue;
+      }
 
-    /** @type {number?} */ let playAnimTimeoutHandle = null;
-    function animationPlaying() { return playAnimTimeoutHandle !== null };
+      const [width, height] = isWidth ? [value, otherValue] : [otherValue, value];
+      ctrlValues.width = width;
+      ctrlValues.height = height;
 
-    const allControls = [
-      fileInput,
-      widthInput,
-      heightInput,
-      lockAspectInput,
-      enableAnimationInput,
-      ...Object.values(animTimingInputs).flatMap(v => [v.value, v.lock]),
-      animationFpsInput,
-      animationTotalFramesInput,
-      animationPlayPauseButton,
-      animationTimeInput,
-      animationTimeValueInput,
-      saveButton,
-      saveSequenceButton,
-    ];
+      if (overrideInputValue) {
+        widthInput.value = String(width);
+        heightInput.value = String(height);
+      } else if (isWidth) {
+        heightInput.value = String(height);
+      } else {
+        widthInput.value = String(width);
+      }
+    } else {
+      if (isWidth) {
+        ctrlValues.width = value;
+      } else {
+        ctrlValues.height = value;
+      }
 
-    function reset() {
-      fileInput.value = '';
+      if (overrideInputValue) {
+        input.value = String(value);
+      }
+    }
+
+    lastUsedSizeInput = input;
+    await rerender();
+  }
+
+  /**
+   * @param {HTMLInputElement} input 
+   * @param {boolean} overrideInputValue 
+   */
+  async function handleTimingInput(input, overrideInputValue) {
+    const isStartTime = input === animationStartTimeInput;
+    const parseResult = lib.util.parseOffsetValue(input);
+    let value = parseResult?.seconds ?? 0;
+    if (!isStartTime) value = Math.max(0, value);
+
+    if (overrideInputValue) {
+      input.value = parseResult?.toStringRep(value) ?? `${value}s`;
+    }
+
+    if (isStartTime) {
+      ctrlValues.animationStartTime = value;
+      await rerender();
+    } else {
+      ctrlValues.animationDuration = value;
+      await handleFrameInput(lastUsedFrameInput, true); // Does rerender()
+    }
+  }
+
+  /**
+   * @param {HTMLInputElement} input 
+   * @param {boolean} overrideInputValue 
+   */
+  async function handleFrameInput(input, overrideInputValue) {
+    const isFps = input === animationFpsInput;
+    const value = lib.util.parsePositiveFloat(input) ?? (isFps ? DEFAULT_FPS : DEFAULT_FPS * ctrlValues.animationDuration);
+
+    const fps = lib.util.clamp(isFps ? value : value / ctrlValues.animationDuration, MIN_FPS, MAX_FPS);
+    let frames = Math.max(1, fps * ctrlValues.animationDuration);
+
+    if (ctrlValues.animationDuration <= EPSILON) {
+      frames = 1;
+    }
+
+    ctrlValues.animationTotalFrames = frames;
+
+    if (!isFps || overrideInputValue) {
+      animationFpsInput.value = String(fps);
+    }
+
+    if (isFps || overrideInputValue) {
+      animationTotalFramesInput.value = String(frames);
+    }
+
+    lastUsedFrameInput = input;
+
+    animationFrameInput.max = String(frames);
+    await handleCurrentFrameInput(); // Does rerender()
+  }
+
+  /**
+   * @param {number} value 
+   */
+  function clampCurrentFrame(value) {
+    return lib.util.clamp(value, 1, ctrlValues.animationTotalFrames);
+  }
+
+  async function handleCurrentFrameInput() {
+    const value = clampCurrentFrame(Number(animationFrameInput.value));
+    animationFrameValueInput.value = String(value);
+    ctrlValues.animationDisplayFrame = value;
+    await rerender();
+  }
+
+  /**
+   * @param {boolean} overrideInputValue 
+   */
+  async function handleCurrentFrameValueInput(overrideInputValue) {
+    const value = clampCurrentFrame(lib.util.parsePositiveInt(animationFrameValueInput) ?? 1);
+    animationFrameInput.value = String(value);
+
+    if (overrideInputValue) {
+      animationFrameValueInput.value = String(value);
+    }
+
+    ctrlValues.animationDisplayFrame = value;
+    await rerender();
+  }
+
+  /**
+   * @param {number} frame 
+   */
+  async function setCurrentFrameAndRerender(frame) {
+    frame = lib.util.clamp(frame, 1, ctrlValues.animationTotalFrames);
+    animationFrameValueInput.value = String(frame);
+    await handleCurrentFrameValueInput(true); // Does rerender()
+  }
+
+  /**
+   * @param {HTMLInputElement} input 
+   * @param {(input: HTMLInputElement, overrideInputValue: boolean) => void} callback 
+   */
+  function makeTextInputEventListeners(input, callback) {
+    input.addEventListener('input', () => callback(input, false));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        callback(input, true);
+      }
+    });
+    input.addEventListener('focusout', () => callback(input, true));
+  }
+
+  fileInput.addEventListener('change', () => loadImageAndRerender());
+
+  makeTextInputEventListeners(widthInput, handleSizeInput);
+  makeTextInputEventListeners(heightInput, handleSizeInput);
+  lockAspectInput.addEventListener('change', () => handleSizeInput(lastUsedSizeInput, true));
+
+  enableAnimationInput.addEventListener('change', rerender);
+
+  makeTextInputEventListeners(animationStartTimeInput, handleTimingInput);
+  makeTextInputEventListeners(animationDurationInput, handleTimingInput);
+
+  makeTextInputEventListeners(animationFpsInput, handleFrameInput);
+  makeTextInputEventListeners(animationTotalFramesInput, handleFrameInput);
+
+  animationPlayPauseButton.addEventListener('click', togglePreviewAnimation);
+  animationFrameInput.addEventListener('input', handleCurrentFrameInput);
+  makeTextInputEventListeners(animationFrameValueInput, (_, overrideInputValue) => handleCurrentFrameValueInput(overrideInputValue));
+
+  saveButton.addEventListener('click', () => saveCurrentFrame());
+  saveSequenceButton.addEventListener('click', saveSequence);
+
+  /**
+   * @param {string} svgContent 
+   */
+  function applySvgContent(svgContent) {
+    sandboxSvgContainer.innerHTML = svgContent;
+    const svg = /** @type {SVGSVGElement} */ (sandboxSvgContainer.children[0]);
+    svg.pauseAnimations();
+    return svg;
+  }
+
+  /**
+   * @param {SVGSVGElement} svg 
+   */
+  async function loadSvgIntoImage(svg) {
+    const svgString = xmlSerializer.serializeToString(svg);
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    image.src = URL.createObjectURL(blob);
+    return new Promise(resolve => image.addEventListener('load', resolve, { once: true }));
+  }
+
+  async function rerender() {
+    if (svgContent === null) {
       image.src = '';
-      sandboxSvgContainer.innerHTML = '';
+    } else {
+      const svg = applySvgContent(svgContent);
+
+      const fps = ctrlValues.animationTotalFrames / ctrlValues.animationDuration;
+      svg.setCurrentTime(ctrlValues.animationStartTime + (ctrlValues.animationDisplayFrame - 1) / fps);
+
+      const svgAnimationElements = lib.svg.getAllAnimationElements(svg);
+
+      if (enableAnimationInput.checked) {
+        lib.svg.applyAnimation(svg);
+      }
+
+      // The renderer will use some values from animation elements if they are not removed
+      for (const element of svgAnimationElements) {
+        element.remove();
+      }
+
+      const scaleY = originalWidth / (originalHeight * (ctrlValues.width / ctrlValues.height));
+      svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
+
+      await loadSvgIntoImage(svg);
+    }
+
+    canvas.width = ctrlValues.width;
+    canvas.height = ctrlValues.height;
+    renderingContext.drawImage(image, 0, 0, ctrlValues.width, ctrlValues.height);
+  }
+
+  /**
+   * @param {boolean} initial 
+   */
+  async function loadImageAndRerender(initial = false) {
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      reset();
+      rerender();
+      return;
+    }
+
+    const fileNameMatch = /^(.*?)\.[^.]*$/.exec(file.name);
+    fileName = fileNameMatch?.[1] ?? file.name;
+
+    try {
+      // Might fail if the file isn't at the original location anymore after the page reloads
+      svgContent = await file.text();
+    } catch (e) {
       svgContent = null;
-      originalWidth = 1;
-      originalHeight = 1;
-      widthInput.value = '';
-      heightInput.value = '';
-      lockAspectInput.checked = true;
-      enableAnimationInput.checked = false;
-      animTimingInputs.start.value.value = '0s';
-      animTimingInputs.start.lock.checked = true;
-      animTimingInputs.duration.value.value = `${DEFAULT_ANIMATION_DURATION}s`;
-      animTimingInputs.duration.lock.checked = false;
-      animTimingInputs.end.value.value = `${DEFAULT_ANIMATION_DURATION}s`;
-      animTimingInputs.end.lock.checked = false;
-      animationFpsInput.value = String(DEFAULT_FPS);
-      animationTotalFramesInput.value = String(DEFAULT_ANIMATION_DURATION * DEFAULT_FPS);
-      animationTimeInput.value = '1';
-      updateAnimationTimeInputFromDuration(DEFAULT_ANIMATION_DURATION);
+    }
+
+    if (svgContent !== null) {
+      sandboxSvgContainer.innerHTML = svgContent;
+    }
+
+    const children = sandboxSvgContainer.children;
+
+    if (svgContent === null) {
+      reset();
+      await rerender();
+    } else if (
+      children.length !== 1 ||
+      !(children[0] instanceof (children[0].ownerDocument.defaultView?.SVGSVGElement ?? SVGSVGElement))
+    ) {
+      reset();
+      await rerender();
+      window.alert('The chosen file is not a valid SVG.');
+    } else {
+      const svg = applySvgContent(svgContent);
+      await loadSvgIntoImage(svg);
+      originalWidth = image.width;
+      originalHeight = image.height;
+      for (const c of allControls) c.disabled = false;
+      const isAnimatedSvg = lib.svg.getAllAnimationElements(svg).length > 0;
+      enableAnimationInput.disabled = !isAnimatedSvg;
+      if (!isAnimatedSvg) enableAnimationInput.checked = false;
+      resetCurrentFrame();
+      if (!initial) {
+        widthInput.value = String(originalWidth);
+        heightInput.value = String(originalHeight);
+      }
+      await handleSizeInput(lastUsedSizeInput, true); // Does rerender()
+    }
+  }
+
+  /**
+   * @param {'all frames' | 'real time'} mode 
+   * @param {((frame: number) => void | Promise<any>) | null} onFrameRendered 
+   */
+  function playAnimation(mode, onFrameRendered = null) {
+    if (playAnimTimeoutHandle !== null) {
       pauseAnimation();
     }
 
-    function aspectRatio() {
-      const ratio = originalWidth / originalHeight;
-      return isNaN(ratio) ? 1 : ratio;
-    }
+    animationFrameValueInput.disabled = true;
 
-    /**
-     * @param {'update' | 'apply svg change' | 'apply svg change keep settings'} mode 
-     * @param {boolean} setControlStatuses 
-     */
-    async function rerender(mode = 'update', setControlStatuses = true) {
-      /**
-       * @param {HTMLInputElement} input 
-       */
-      function parseDimension(input) {
-        return input.value.length === 0 ? DEFAULT_IMAGE_SIZE : lib.util.clamp(Number(input.value), 1, MAX_IMAGE_SIZE);
+    let timeMs = performance.now();
+
+    async function renderFrame() {
+      const currentTimeMs = performance.now();
+      const deltaMs = currentTimeMs - timeMs;
+      const msPerFrame = (1000 * ctrlValues.animationDuration) / ctrlValues.animationTotalFrames;
+
+      if (mode === 'all frames' || deltaMs >= msPerFrame) {
+        const frameDelta = mode === 'all frames' ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
+        timeMs += msPerFrame * frameDelta;
+
+        let frame = ctrlValues.animationDisplayFrame + frameDelta;
+        if (frame > ctrlValues.animationTotalFrames) {
+          frame = 1;
+        }
+
+        await setCurrentFrameAndRerender(frame);
+
+        const result = onFrameRendered?.(frame);
+        if (typeof result === 'object') {
+          await result;
+        }
       }
 
-      let width = parseDimension(widthInput);
-      let height = parseDimension(heightInput);
-      let isAnimatedSvg = false;
+      // If pauseAnimation() has been called, this will be null
+      if (playAnimTimeoutHandle === null) return;
 
-      if (svgContent === null) {
-        image.src = '';
-      } else {
-        sandboxSvgContainer.innerHTML = svgContent;
-        const svg = /** @type {SVGSVGElement} */ (sandboxSvgContainer.children[0]);
-        svg.pauseAnimations();
-
-        const timingVals = parseTimingInputSecondsForUse();
-        const fps = animationFpsInput.value.length === 0 ? DEFAULT_FPS :
-          lib.util.clamp(Number(animationFpsInput.value), MIN_FPS, MAX_FPS);
-        const currentFrame = Number(animationTimeInput.value);
-
-        svg.setCurrentTime(timingVals.start + (currentFrame - 1) / fps);
-
-        const svgAnimationElements = lib.svg.getAllAnimationElements(svg);
-        if (svgAnimationElements.length > 0) {
-          isAnimatedSvg = true;
-        }
-
-        async function loadSvgIntoImage() {
-          const svgString = xmlSerializer.serializeToString(svg);
-          const blob = new Blob([svgString], { type: 'image/svg+xml' });
-          image.src = URL.createObjectURL(blob);
-          await new Promise(resolve => image.addEventListener('load', resolve, { once: true }));
-        }
-
-        if (mode !== 'update') {
-          await loadSvgIntoImage();
-
-          originalWidth = image.width;
-          originalHeight = image.height;
-
-          // Keep settings mode is to preserve user settings on page reload. Only works on Firefox.
-          if (mode !== 'apply svg change keep settings') {
-            widthInput.value = String(originalWidth);
-            heightInput.value = String(originalHeight);
-            width = originalWidth;
-            height = originalHeight;
-            enableAnimationInput.checked = isAnimatedSvg;
-          }
-        }
-
-        if (isAnimatedSvg && enableAnimationInput.checked) {
-          lib.svg.applyAnimation(svg);
-        }
-
-        // The renderer will use some values from animation elements if they are not removed
-        for (const element of svgAnimationElements) {
-          element.remove();
-        }
-
-        const scaleY = originalWidth / (originalHeight * (width / height));
-        svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
-
-        await loadSvgIntoImage();
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      renderingContext.drawImage(image, 0, 0, width, height);
-
-      animationTimeValueInput.value = animationTimeInput.value;
-
-      if (!setControlStatuses) return;
-
-      const disableInputs = svgContent === null;
-      const disableAnimationInputs = disableInputs || !isAnimatedSvg;
-
-      widthInput.disabled = disableInputs;
-      heightInput.disabled = disableInputs;
-      lockAspectInput.disabled = disableInputs;
-      saveButton.disabled = disableInputs;
-
-      enableAnimationInput.disabled = disableAnimationInputs;
-
-      if (disableInputs) {
-        widthInput.value = '';
-        heightInput.value = '';
-        lockAspectInput.checked = true;
-      }
-      if (disableAnimationInputs) {
-        enableAnimationInput.checked = false;
-        animationTimeInput.value = '1';
-        pauseAnimation();
-      }
-    }
-
-    async function loadImageAndRerender(isInitialImageLoad = false) {
-      const file = fileInput.files?.[0];
-
-      if (!file) {
-        reset();
-        rerender('apply svg change');
+      if (!enableAnimationInput.checked) {
+        playAnimTimeoutHandle = null;
         return;
-      }
-
-      const fileNameMatch = /^(.*?)\.[^.]*$/.exec(file.name);
-      fileName = fileNameMatch?.[1] ?? file.name;
-
-      try {
-        // Might fail if the file isn't at the original location anymore after the page reloads
-        svgContent = await file.text();
-      } catch (e) {
-        svgContent = null;
-      }
-
-      if (svgContent !== null) {
-        sandboxSvgContainer.innerHTML = svgContent;
-      }
-
-      const children = sandboxSvgContainer.children;
-
-      if (svgContent === null) {
-        reset();
-        rerender('apply svg change');
-      } else if (
-        children.length !== 1 ||
-        // instanceof does not work here because the SVG lives in a different context inside the iframe
-        children[0].tagName.toLowerCase() !== 'svg'
-      ) {
-        reset();
-        rerender('apply svg change');
-        window.alert('The chosen file is not a valid SVG.');
-      } else {
-        rerender(isInitialImageLoad ? 'apply svg change keep settings' : 'apply svg change')
-      }
-    }
-
-    fileInput.addEventListener('change', () => loadImageAndRerender());
-
-    /**
-     * @returns {Promise<Blob>} 
-     */
-    function getFrameBlob() {
-      return new Promise(resolve => {
-        // FUTURE: file format and quality
-        canvas.toBlob(blob => resolve(/** @type {Blob} */(blob)));
-      });
-    }
-
-    async function saveCurrentFrame(fileNameSuffix = '') {
-      lib.util.saveFile(await getFrameBlob(), fileName + fileNameSuffix);
-    }
-
-    saveButton.addEventListener('click', () => saveCurrentFrame());
-
-    saveSequenceButton.addEventListener('click', async () => {
-      const frameCount = Number(animationTimeInput.max);
-
-      if (frameCount === 1) {
-        await saveCurrentFrame();
-        return;
-      }
-
-      const controlsActiveState = allControls.map(c => ({ control: c, disabled: c.disabled }));
-      for (const c of allControls) {
-        c.disabled = true;
-      }
-
-      const zipWriter = new lib.zip.ZipWriter();
-      const suffixLength = String(frameCount).length;
-
-      /**
-       * @param {number} frame 
-       */
-      async function doUpdate(frame) {
-        const blob = await getFrameBlob();
-        await zipWriter.appendFile(blob, `frame-${String(frame).padStart(suffixLength, '0')}.png`);
-
-        if (frame < Number(animationTimeInput.max)) return;
-
-        for (const state of controlsActiveState) {
-          state.control.disabled = state.disabled;
-        }
-
-        pauseAnimation();
-        rerender();
-
-        lib.util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
-      }
-
-      animationTimeInput.value = '1';
-      await rerender();
-      await doUpdate(1);
-
-      playAnimation('all frames', doUpdate);
-    });
-
-    /**
-     * @param {string} value 
-     * @param {boolean} allowNonInt 
-     */
-    function sanitizeNumberInput(value, allowNonInt) {
-      if (!allowNonInt) {
-        const str = value.replaceAll(/[^\d]/g, '');
-        return str.length === 0 ? null : Number(str);
-      } else {
-        let str = value.replaceAll(/[^\d.]/g, '');
-        const slices = str.split('.');
-        str = slices.slice(0, 2).join('.') + slices.slice(2).join();
-        return str.length === 0 ? null : Number(str);
-      }
-    }
-
-    /**
-     * @param {HTMLInputElement?} sizeInput 
-     * @param {boolean} allowEmpty 
-     */
-    function handleSizeInputChange(sizeInput = null, allowEmpty = true) {
-      sizeInput ??= lastUsedSizeInput;
-      lastUsedSizeInput = sizeInput;
-      const isWidth = sizeInput === widthInput;
-      const otherSizeInput = isWidth ? heightInput : widthInput;
-
-      const inputValue = sanitizeNumberInput(sizeInput.value, false);
-
-      let dimension = inputValue ?? DEFAULT_IMAGE_SIZE;
-      if (dimension > MAX_IMAGE_SIZE) {
-        dimension = MAX_IMAGE_SIZE;
-      }
-
-      if (lockAspectInput.checked || otherSizeInput.value.length === 0) {
-        let dimensionToOtherDimension = isWidth ? 1 / aspectRatio() : aspectRatio();
-        let otherDimension = Math.floor(dimension * dimensionToOtherDimension);
-        if (otherDimension > MAX_IMAGE_SIZE) {
-          otherDimension = MAX_IMAGE_SIZE;
-          dimension = Math.floor(otherDimension / dimensionToOtherDimension);
-        }
-
-        otherSizeInput.value = String(otherDimension);
-      }
-
-      sizeInput.value = !allowEmpty ? String(dimension) : String(inputValue) ?? '';
-
-      rerender();
-    }
-
-    widthInput.addEventListener('input', () => handleSizeInputChange(widthInput));
-    widthInput.addEventListener('focusout', () => {
-      if (widthInput.value.length === 0) {
-        handleSizeInputChange(widthInput, false);
-      }
-    });
-
-    heightInput.addEventListener('input', () => handleSizeInputChange(heightInput));
-    heightInput.addEventListener('focusout', () => {
-      if (heightInput.value.length === 0) {
-        handleSizeInputChange(heightInput, false);
-      }
-    });
-
-    lockAspectInput.addEventListener('change', () => handleSizeInputChange());
-
-    enableAnimationInput.addEventListener('change', () => rerender());
-
-    if (!Object.values(animTimingInputs).some(inputs => inputs.lock.checked)) {
-      animTimingInputs.start.lock.checked = true;
-    }
-
-    for (const inputs of Object.values(animTimingInputs)) {
-      inputs.lock.addEventListener('change', () => {
-        for (const { value: val } of Object.values(animTimingInputs)) {
-          val.disabled = false;
-        }
-        inputs.value.disabled = inputs.lock.checked;
-      });
-
-      inputs.value.disabled = inputs.lock.checked; // Initialize correct state
-    }
-
-    function parseTimingInputValues() {
-      /** @type {{ [kind in keyof typeof animTimingInputs]: ReturnType<typeof lib.util.parseOffsetValue> }} */
-      const result = /** @type {any} */ ({});
-
-      for (const kind of /** @type {(keyof typeof animTimingInputs)[]} */ (Object.keys(animTimingInputs))) {
-        const input = animTimingInputs[kind].value;
-        const val = lib.util.parseOffsetValue(input.value);
-        result[kind] = val === null || (input === animTimingInputs.duration.value && val.seconds < 0) ? null : val;
-      }
-      return result;
-    }
-
-    /**
-     * @param {keyof typeof animTimingInputs} kind 
-     * @param {ReturnType<parseTimingInputValues>} vals 
-     */
-    function substituteTimingInputDefaults(kind, vals) {
-      switch (kind) {
-        case 'start': return vals.end === null ? 0 : vals.end.seconds - (vals.duration?.seconds ?? 0);
-        case 'duration': return vals.start === null || vals.end === null ? 0 : vals.end.seconds - vals.start.seconds;
-        case 'end': return (vals.start?.seconds ?? 0) + (vals.duration?.seconds ?? 0);
-      }
-    }
-
-    function parseTimingInputSecondsForUse() {
-      const vals = parseTimingInputValues();
-      /** @type {{ [kind in keyof typeof animTimingInputs]: number }} */
-      const results = /** @type {any} */ ({});
-
-      for (const kind of lib.util.keys(animTimingInputs)) {
-        results[kind] = vals[kind]?.seconds ?? substituteTimingInputDefaults(kind, vals);
-      }
-      return results;
-    }
-
-    /**
-     * @param {number} frames 
-     */
-    function updateAnimationTimeInputFromFrames(frames) {
-      animationTimeInput.max = String(frames);
-    }
-
-    /**
-     * @param {number} animationDuration 
-     */
-    function updateAnimationTimeInputFromDuration(animationDuration) {
-      const frames = Math.max(
-        1,
-        lastUsedAnimationFrameInput === animationFpsInput
-          ? Math.floor(animationDuration * handleAnimationFpsInput(false, false))
-          : handleAnimationTotalFramesInput(false, false)
-      );
-      updateAnimationTimeInputFromFrames(frames);
-    }
-
-    /**
-     * @param {number} seconds 
-     * @param {{ toStringRep: (seconds: number) => string }?} parseResult 
-     */
-    function toTimingInputValueRepresentation(seconds, parseResult) {
-      return parseResult?.toStringRep(seconds) ?? `${seconds}s`;
-    }
-
-    /**
-     * @param {keyof typeof animTimingInputs} kind 
-     */
-    function handleTimingInputChange(kind) {
-      const vals = parseTimingInputValues();
-
-      const changedVal = kind === 'start' ? vals.start : kind === 'duration' ? vals.duration : vals.end;
-      animTimingInputs[kind].value.setCustomValidity(changedVal === null ? CLOCK_VALUE_VALIDITY_DESCRIPTION : '');
-      if (changedVal === null) return;
-
-      let start = vals.start?.seconds ?? 0;
-      let duration = vals.duration?.seconds ?? 0;
-      let end = vals.end?.seconds ?? start;
-
-      switch (kind) {
-        case 'start':
-          if (animTimingInputs.end.lock.checked) {
-            const max = vals.end?.seconds ?? (vals.duration === null ? null : start + vals.duration.seconds);
-            if (max !== null && start > max) {
-              start = max;
-              animTimingInputs.start.value.value = toTimingInputValueRepresentation(start, vals.start);
-            }
-          }
-          break;
-        case 'end':
-          if (animTimingInputs.start.lock.checked) {
-            const min = vals.start?.seconds ?? (vals.duration === null ? null : end - vals.duration.seconds);
-            if (min !== null && end < min) {
-              end = min;
-              animTimingInputs.end.value.value = toTimingInputValueRepresentation(end, vals.end);
-            }
-          }
-          break;
-      }
-
-      if (kind !== 'start' && !animTimingInputs.start.lock.checked) { // Start unlocked
-        start = end - duration;
-        animTimingInputs.start.value.value = toTimingInputValueRepresentation(start, vals.start);
-      } else if (kind !== 'duration' && !animTimingInputs.duration.lock.checked) { // Duration unlocked
-        duration = end - start;
-        animTimingInputs.duration.value.value = toTimingInputValueRepresentation(duration, vals.duration);
-      } else { // End unlocked
-        end = start + duration;
-        animTimingInputs.end.value.value = toTimingInputValueRepresentation(end, vals.end);
-      }
-
-      updateAnimationTimeInputFromDuration(duration);
-
-      rerender();
-    }
-
-    function handleTimingInputFocusOut() {
-      const vals = parseTimingInputValues();
-
-      let anyChange = false;
-      let duration = 0;
-
-      for (const kind of lib.util.keys(animTimingInputs)) {
-        const input = animTimingInputs[kind].value;
-        const parseResult = vals[kind];
-
-        let value;
-        if (parseResult === null) {
-          value = substituteTimingInputDefaults(kind, vals);
-          input.value = toTimingInputValueRepresentation(value, parseResult);
-          anyChange = true;
-        } else {
-          value = parseResult.seconds;
-        }
-
-        if (kind === 'duration') {
-          duration = value;
-        }
-      }
-
-      if (!anyChange) return;
-
-      updateAnimationTimeInputFromDuration(duration);
-
-      rerender();
-    }
-
-    for (const kind of lib.util.keys(animTimingInputs)) {
-      const inputs = animTimingInputs[kind];
-      inputs.value.addEventListener('input', () => handleTimingInputChange(kind));
-      inputs.value.addEventListener('focusout', handleTimingInputFocusOut);
-    }
-
-    /**
-     * @param {boolean} allowEmpty 
-     * @param {boolean} doRerender 
-     */
-    function handleAnimationFpsInput(allowEmpty, doRerender = true) {
-      let fps = sanitizeNumberInput(animationFpsInput.value, true);
-      const animDuration = parseTimingInputSecondsForUse().duration;
-
-      if (fps === null) {
-        const frames = sanitizeNumberInput(animationTotalFramesInput.value, false);
-        fps = frames === null || animDuration <= EPSILON ? DEFAULT_FPS : Math.max(1, frames) / animDuration;
-        if (allowEmpty) return fps;
-        animationFpsInput.value = String(fps);
-      }
-
-      animationTotalFramesInput.value = String(Math.floor(animDuration * fps));
-      lastUsedAnimationFrameInput = animationFpsInput;
-
-      updateAnimationTimeInputFromFrames(Math.floor(fps * animDuration));
-
-      if (doRerender) {
-        rerender();
-      }
-
-      return fps;
-    }
-
-    animationFpsInput.addEventListener('input', () => handleAnimationFpsInput(true));
-    animationFpsInput.addEventListener('focusout', () => handleAnimationFpsInput(false));
-
-    /**
-     * @param {boolean} allowEmpty 
-     * @param {boolean} doRerender 
-     */
-    function handleAnimationTotalFramesInput(allowEmpty, doRerender = true) {
-      let frames = sanitizeNumberInput(animationTotalFramesInput.value, false);
-      const animDuration = parseTimingInputSecondsForUse().duration;
-
-      if (frames === null) {
-        const fps = sanitizeNumberInput(animationFpsInput.value, true) ?? DEFAULT_FPS;
-        frames = Math.max(1, Math.floor(fps * animDuration));
-        if (allowEmpty) return frames;
-        animationTotalFramesInput.value = String(frames);
-      } else {
-        frames = Math.max(1, frames);
-      }
-
-      animationFpsInput.value = String(frames / animDuration);
-      animationTotalFramesInput.value = String(frames);
-      lastUsedAnimationFrameInput = animationTotalFramesInput;
-
-      updateAnimationTimeInputFromFrames(frames);
-
-      if (doRerender) {
-        rerender();
-      }
-
-      return frames;
-    }
-
-    animationTotalFramesInput.addEventListener('input', () => handleAnimationTotalFramesInput(true));
-    animationTotalFramesInput.addEventListener('focusout', () => handleAnimationTotalFramesInput(false));
-
-    /**
-     * @param {'all frames' | 'real time'} mode 
-     * @param {((frame: number) => void | Promise<any>) | null} onFrameRendered 
-     */
-    function playAnimation(mode, onFrameRendered = null) {
-      if (playAnimTimeoutHandle !== null) {
-        pauseAnimation();
-      }
-
-      animationTimeValueInput.disabled = true;
-
-      let timeMs = performance.now();
-
-      async function renderFrame() {
-        const currentTimeMs = performance.now();
-        const deltaMs = currentTimeMs - timeMs;
-        const msPerFrame = 1000 / handleAnimationFpsInput(true, false);
-
-        if (mode === 'all frames' || deltaMs >= msPerFrame) {
-          const frameDelta = mode === 'all frames' ? 1 : Math.max(1, Math.floor(deltaMs / msPerFrame));
-          timeMs += msPerFrame * frameDelta;
-
-          let frame = Number(animationTimeInput.value) + frameDelta;
-          if (frame > Number(animationTimeInput.max)) {
-            frame = 1;
-          }
-          animationTimeInput.value = String(frame);
-
-          await rerender('update', false);
-          const result = onFrameRendered?.(frame);
-          if (typeof result === 'object') {
-            await result;
-          }
-        }
-
-        // If pauseAnimation() has been called, this will be null
-        if (playAnimTimeoutHandle === null) return;
-
-        if (!enableAnimationInput.checked) {
-          playAnimTimeoutHandle = null;
-          return;
-        }
-
-        playAnimTimeoutHandle = setTimeout(renderFrame);
       }
 
       playAnimTimeoutHandle = setTimeout(renderFrame);
     }
 
-    function pauseAnimation() {
-      if (playAnimTimeoutHandle === null) return;
-      clearTimeout(playAnimTimeoutHandle);
-      playAnimTimeoutHandle = null;
-      animationTimeValueInput.disabled = false;
+    playAnimTimeoutHandle = setTimeout(renderFrame);
+  }
+
+  function pauseAnimation() {
+    if (playAnimTimeoutHandle === null) return;
+    clearTimeout(playAnimTimeoutHandle);
+    playAnimTimeoutHandle = null;
+    animationFrameValueInput.disabled = false;
+  }
+
+  function togglePreviewAnimation() {
+    if (playAnimTimeoutHandle !== null) {
+      pauseAnimation();
+    } else {
+      playAnimation('real time');
+    }
+  }
+
+  /**
+   * @returns {Promise<Blob>} 
+   */
+  function getFrameBlob() {
+    return new Promise(resolve => {
+      // FUTURE: file format and quality
+      canvas.toBlob(blob => resolve(/** @type {Blob} */(blob)));
+    });
+  }
+
+  async function saveCurrentFrame(fileNameSuffix = '') {
+    lib.util.saveFile(await getFrameBlob(), fileName + fileNameSuffix);
+  }
+
+  async function saveSequence() {
+    if (ctrlValues.animationTotalFrames === 1) {
+      await saveCurrentFrame();
+      return;
     }
 
-    animationPlayPauseButton.addEventListener('click', () => {
-      if (animationPlaying()) {
-        pauseAnimation();
-      } else {
-        playAnimation('real time');
-      }
-    });
+    const controlsActiveState = allControls.map(c => ({ control: c, disabled: c.disabled }));
+    for (const c of allControls) {
+      c.disabled = true;
+    }
 
-    animationTimeInput.addEventListener('input', () => rerender());
+    const zipWriter = new lib.zip.ZipWriter();
+    const suffixLength = String(ctrlValues.animationTotalFrames).length;
 
     /**
-     * @param {boolean} allowInvalid 
+     * @param {number} frame 
      */
-    function handleAnimationTimeValueInput(allowInvalid) {
+    async function doUpdate(frame) {
+      const blob = await getFrameBlob();
+      await zipWriter.appendFile(blob, `frame-${String(frame).padStart(suffixLength, '0')}.png`);
+
+      if (frame < ctrlValues.animationTotalFrames) return;
+
+      for (const state of controlsActiveState) {
+        state.control.disabled = state.disabled;
+      }
+
       pauseAnimation();
-
-      const sanitizedValue = sanitizeNumberInput(animationTimeValueInput.value, false);
-      let frame = sanitizedValue;
-
-      if (frame === null) {
-        if (allowInvalid) return;
-        frame = 1;
-      }
-
-      if (!allowInvalid) {
-        frame = lib.util.clamp(frame, 1, Number(animationTimeInput.max));
-      }
-
-      animationTimeValueInput.value = !allowInvalid ? String(frame) : sanitizedValue === null ? '' : String(sanitizedValue);
-      animationTimeInput.value = String(frame);
-
       rerender();
+
+      lib.util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
     }
 
-    animationTimeValueInput.addEventListener('input', () => handleAnimationTimeValueInput(true));
-    animationTimeValueInput.addEventListener('focusout', () => handleAnimationTimeValueInput(false));
+    await setCurrentFrameAndRerender(1);
+    await doUpdate(1);
 
-    {
-      const storeLastUsedAnimationInput = lastUsedAnimationFrameInput;
-      updateAnimationTimeInputFromFrames(handleAnimationTotalFramesInput(false, false));
-      lastUsedAnimationFrameInput = storeLastUsedAnimationInput;
-      loadImageAndRerender(true);
-    }
-  });
+    playAnimation('all frames', doUpdate);
+  }
+
+  loadImageAndRerender(true);
 });
