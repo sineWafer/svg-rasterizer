@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const DEFAULT_FPS = 30;
   const MIN_FPS = 0.001;
   const MAX_FPS = 65536;
+  /** @type {boolean} */ let NEEDS_STRETCHING_ADJUSTMENT;
 
   const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
   const widthInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-width'));
@@ -44,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   /** @type {HTMLInputElement} */ let lastUsedFrameInput;
   /** @type {string} */ let fileName;
   /** @type {number?} */ let playAnimTimeoutHandle;
-  function animationPlaying() { return playAnimTimeoutHandle !== null; }
 
   function resetVars() {
     svgContent = null;
@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     fileName = 'img';
     playAnimTimeoutHandle = null;
   }
-  resetVars();
 
   /**
    * @type {{
@@ -78,7 +77,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       ?? DEFAULT_ANIMATION_DURATION * DEFAULT_FPS;
     ctrlValues.animationDisplayFrame = lib.util.parsePositiveInt(animationFrameValueInput) ?? 1;
   }
-  resetCtrlValues();
 
   const animationControls = [
     animationStartTimeInput,
@@ -355,8 +353,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         element.remove();
       }
 
-      const scaleY = originalWidth / (originalHeight * (ctrlValues.width / ctrlValues.height));
-      svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
+      if (NEEDS_STRETCHING_ADJUSTMENT) {
+        const scaleY = originalWidth / (originalHeight * (ctrlValues.width / ctrlValues.height));
+        svg.style.transform += scaleY >= 1 ? ` scaleY(${scaleY})` : ` scaleX(${1 / scaleY})`;
+      }
 
       await loadSvgIntoImage(svg);
     }
@@ -367,25 +367,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * @param {boolean} initial 
+   * @param {boolean} setSize 
+   * @param {string?} overrideSvgContent 
    */
-  async function loadImageAndRerender(initial = false) {
-    const file = fileInput.files?.[0];
+  async function loadImageAndRerender(setSize = true, overrideSvgContent = null) {
+    if (overrideSvgContent === null) {
+      const file = fileInput.files?.[0];
 
-    if (!file) {
-      reset();
-      rerender();
-      return;
-    }
+      if (!file) {
+        reset();
+        await rerender();
+        return;
+      }
 
-    const fileNameMatch = /^(.*?)\.[^.]*$/.exec(file.name);
-    fileName = fileNameMatch?.[1] ?? file.name;
+      const fileNameMatch = /^(.*?)\.[^.]*$/.exec(file.name);
+      fileName = fileNameMatch?.[1] ?? file.name;
 
-    try {
-      // Might fail if the file isn't at the original location anymore after the page reloads
-      svgContent = await file.text();
-    } catch (e) {
-      svgContent = null;
+      try {
+        // Might fail if the file isn't at the original location anymore after the page reloads
+        svgContent = await file.text();
+      } catch (e) {
+        svgContent = null;
+      }
+    } else {
+      svgContent = overrideSvgContent;
     }
 
     if (svgContent !== null) {
@@ -406,19 +411,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.alert('The chosen file is not a valid SVG.');
     } else {
       const svg = applySvgContent(svgContent);
+
       await loadSvgIntoImage(svg);
+
       originalWidth = image.width;
       originalHeight = image.height;
       for (const c of allControls) c.disabled = false;
+
       const isAnimatedSvg = lib.svg.getAllAnimationElements(svg).length > 0;
       enableAnimationInput.disabled = !isAnimatedSvg;
       if (!isAnimatedSvg) enableAnimationInput.checked = false;
+
       resetCurrentFrame();
-      if (!initial) {
+
+      if (setSize) {
         widthInput.value = String(originalWidth);
         heightInput.value = String(originalHeight);
+        ctrlValues.width = originalWidth;
+        ctrlValues.height = originalHeight;
+        await handleSizeInput(lastUsedSizeInput, true); // Does rerender()
+      } else {
+        await rerender();
       }
-      await handleSizeInput(lastUsedSizeInput, true); // Does rerender()
     }
   }
 
@@ -539,5 +553,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     playAnimation('all frames', doUpdate);
   }
 
-  loadImageAndRerender(true);
+  // Feature test
+  {
+    const featureTestContainer = /** @type {HTMLTemplateElement} */ (sandboxDocument.getElementById('feature-test')).content;
+    const testSvg = /** @type {SVGSVGElement} */ (featureTestContainer.querySelector('svg'));
+
+    const enableAnimationWasChecked = enableAnimationInput.checked;
+    resetVars();
+    resetCtrlValues();
+    canvas.style.opacity = '0';
+    
+    // Do we need extra stretching?
+    ctrlValues.width = 100;
+    ctrlValues.height = 1;
+    await loadImageAndRerender(false, testSvg.outerHTML);
+    const pixelRed = renderingContext.getImageData(1, 0, 1, 1).data[0];
+    NEEDS_STRETCHING_ADJUSTMENT = pixelRed < 127;
+
+    canvas.style.opacity = '';
+    enableAnimationInput.checked = enableAnimationWasChecked;
+  }
+
+  // Initialize
+  resetVars();
+  resetCtrlValues();
+  loadImageAndRerender(false);
 });
