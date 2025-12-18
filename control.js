@@ -151,11 +151,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (lockAspectInput.checked) {
       const valueToOtherValue = isWidth ? 1 / aspectRatio() : aspectRatio();
-      let otherValue = valueToOtherValue * value;
+      let otherValue = Math.floor(valueToOtherValue * value);
 
       if (otherValue > MAX_IMAGE_SIZE) {
         otherValue = MAX_IMAGE_SIZE;
-        value = otherValue / valueToOtherValue;
+        value = Math.floor(otherValue / valueToOtherValue);
       }
 
       const [width, height] = isWidth ? [value, otherValue] : [otherValue, value];
@@ -367,10 +367,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * @param {boolean} setSize 
+   * @param {boolean} setControlsToDefaults 
    * @param {string?} overrideSvgContent 
    */
-  async function loadImageAndRerender(setSize = true, overrideSvgContent = null) {
+  async function loadImageAndRerender(setControlsToDefaults = true, overrideSvgContent = null) {
     if (overrideSvgContent === null) {
       const file = fileInput.files?.[0];
 
@@ -420,11 +420,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const isAnimatedSvg = lib.svg.getAllAnimationElements(svg).length > 0;
       enableAnimationInput.disabled = !isAnimatedSvg;
-      if (!isAnimatedSvg) enableAnimationInput.checked = false;
+      enableAnimationInput.checked = isAnimatedSvg && (setControlsToDefaults || enableAnimationInput.checked);
 
       resetCurrentFrame();
 
-      if (setSize) {
+      if (setControlsToDefaults) {
         widthInput.value = String(originalWidth);
         heightInput.value = String(originalHeight);
         ctrlValues.width = originalWidth;

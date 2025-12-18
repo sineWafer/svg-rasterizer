@@ -13,61 +13,91 @@
 </head>
 
 <body>
-  <input type="file" id="setting-file" accept="image/svg+xml">
-  <br>
-  <label>
-    Width
-    <input type="text" id="setting-width">
-  </label>
-  <label>
-    Height
-    <input type="text" id="setting-height">
-  </label>
-  <br>
-  <label>
-    <input type="checkbox" id="setting-lock-aspect" checked>
-    Lock Aspect Ratio
-  </label>
-  <br>
-  <span id="show-size-other"></span>
-  <br>
-  <label>
-    <input type="checkbox" id="setting-enable-animation">
-    Enable animation
-  </label>
-  <br>
-  <label class="animation-control">
-    Start time
-    <input type="text" id="setting-animation-start-time">
-  </label>
-  <label class="animation-control">
-    Duration
-    <input type="text" id="setting-animation-duration">
-  </label>
-  <br>
-  <div class="animation-control">
+  <div id="sidebar">
+    <input type="file" id="setting-file" accept="image/svg+xml">
+    <div class="controls-section">
+      <label for="setting-width">
+        <svg width="1lh" height="1lh" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1,6 h10" fill="none" stroke="currentColor" />
+          <path d="M4,3 l-3,3 l3,3" stroke-linecap="round" fill="none" stroke="currentColor" />
+          <path d="M8,3 l3,3 l-3,3" stroke-linecap="round" fill="none" stroke="currentColor" />
+        </svg>
+      </label>
+      <div><input type="text" id="setting-width"></div>
+      <label for="setting-width" class="input-inline">px</label>
+
+      <label for="setting-height">
+        <svg width="1lh" height="1lh" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6,1 v10" fill="none" stroke="currentColor" />
+          <path d="M3,4 l3,-3 l3,3" stroke-linecap="round" fill="none" stroke="currentColor" />
+          <path d="M3,8 l3,3 l3,-3" stroke-linecap="round" fill="none" stroke="currentColor" />
+        </svg>
+      </label>
+      <div><input type="text" id="setting-height"></div>
+      <label for="setting-height" class="input-inline">px</label>
+
+      <label for="setting-lock-aspect">
+        <svg width="1lh" height="1lh" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3,3 v5 h5" stroke-linejoin="round" fill="none" stroke="currentColor" />
+          <path d="M1,5 l2,-2 l2,2" stroke-linecap="round" fill="none" stroke="currentColor" />
+          <path d="M6,6 l2,2 l-2,2" stroke-linecap="round" fill="none" stroke="currentColor" />
+          <path d="M10,5 v-1.5 a1,1,0,0,0,-1,-1 h-1 a1,1,0,0,0,-1,1 v1" fill="none" stroke="currentColor" />
+          <path d="M10,8 h.5 a.5,.5,0,0,0,.5,-.5 v-3 a.5,.5,0,0,0,-.5,-.5 h-4.5 Z" fill="currentColor" />
+        </svg>
+      </label>
+      <div>
+        <input type="checkbox" id="setting-lock-aspect" checked>
+        <label for="setting-lock-aspect">
+          <svg class="svg-checkbox-padlock" width="3lh" height="1.5lh" viewBox="0 0 12 12"
+            xmlns="http://www.w3.org/2000/svg">
+            <path d="M4,6 a1,1,0,0,0,-1,1 v2 a1,1,0,0,0,1,1 h4 a1,1,0,0,0,1,-1 v-2 a1,1,0,0,0,-1,-1 Z"
+              fill="currentColor" />
+            <path class="shackle" d="M8,7 v-3 a2,2,0,0,0,-2,-2 a2,2,0,0,0,-2,2 v.15" fill="none" stroke="currentColor" />
+          </svg>
+        </label>
+      </div>
+    </div>
+
     <label>
-      FPS
-      <input type="text" id="setting-animation-fps">
+      <input type="checkbox" id="setting-enable-animation">
+      Enable animation
     </label>
-    <label>
-      Total frames
-      <input type="text" id="setting-animation-total-frames">
-    </label>
+    <div class="controls-section animation-control">
+      <label>
+        Start time
+        <input type="text" id="setting-animation-start-time">
+      </label>
+      <label>
+        Duration
+        <input type="text" id="setting-animation-duration">
+      </label>
+    </div>
+    <div class="controls-section animation-control">
+      <label>
+        FPS
+        <input type="text" id="setting-animation-fps">
+      </label>
+      <label>
+        Total frames
+        <input type="text" id="setting-animation-total-frames">
+      </label>
+    </div>
+    <div class="controls-section animation-control">
+      <button id="view-animation-play-pause">Play/Pause</button>
+      <input type="range" id="view-animation-frame" step="1" min="1">
+      <label>
+        Frame
+        <input type="text" id="view-animation-frame-value">
+      </label>
+    </div>
+    <button id="save">Save</button>
+    <button id="save-sequence" class="animation-control">Save sequence</button>
   </div>
-  <div class="animation-control">
-    <button id="view-animation-play-pause">Play/Pause</button>
-    <input type="range" id="view-animation-frame" step="1" min="1">
-    <label>
-      Frame
-      <input type="text" id="view-animation-frame-value">
-    </label>
+  <div id="main">
+    <canvas id="main-canvas"></canvas>
   </div>
-  <button id="save">Save</button>
-  <button id="save-sequence" class="animation-control">Save sequence</button>
-  <br>
-  <canvas id="main-canvas"></canvas>
-  <iframe id="sandbox" sandbox="allow-same-origin" src="sandbox.html" style="position: absolute; opacity: 0;"></iframe>
+  <iframe id="sandbox" sandbox="allow-same-origin" src="sandbox.html"
+    style="position: absolute; opacity: 0; pointer-events: none;"></iframe>
 </body>
 
 </html>
