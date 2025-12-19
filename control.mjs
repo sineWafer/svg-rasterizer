@@ -4,6 +4,10 @@ import * as libSvg from './lib/svg.mjs';
 import { ZipWriter } from './lib/zip.mjs';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const CLASSES = /** @type {const} */ {
+    INPUT_UNIT_IMPLIED: 'implied-metric',
+  };
+
   const MAX_IMAGE_SIZE = 4096;
   const DEFAULT_IMAGE_SIZE = 300;
   const EPSILON = 0.000001;
@@ -141,9 +145,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * @param {HTMLInputElement} input 
-   * @param {boolean} overrideInputValue 
+   * @param {boolean} inputting 
    */
-  async function handleSizeInput(input, overrideInputValue) {
+  async function handleSizeInput(input, inputting) {
     const isWidth = input === widthInput;
 
     let value = util.parsePositiveInt(input) ?? DEFAULT_IMAGE_SIZE;
@@ -165,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       ctrlValues.width = width;
       ctrlValues.height = height;
 
-      if (overrideInputValue) {
+      if (!inputting) {
         widthInput.value = String(width);
         heightInput.value = String(height);
       } else if (isWidth) {
@@ -180,43 +184,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctrlValues.height = value;
       }
 
-      if (overrideInputValue) {
+      if (!inputting) {
         input.value = String(value);
       }
     }
 
-    lastUsedSizeInput = input;
+    if (inputting) {
+      lastUsedSizeInput = input;
+    }
     await rerender();
   }
 
   /**
    * @param {HTMLInputElement} input 
-   * @param {boolean} overrideInputValue 
+   * @param {string | null | undefined} timecountMetric 
    */
-  async function handleTimingInput(input, overrideInputValue) {
+  function handleTimingInputImpliedUnit(input, timecountMetric) {
+    input.classList.toggle(CLASSES.INPUT_UNIT_IMPLIED, timecountMetric === '');
+  }
+
+  function handleTimingInputsImpliedUnits() {
+    for (const input of [animationStartTimeInput, animationDurationInput]) {
+      handleTimingInputImpliedUnit(input, util.parseOffsetValue(input)?.timecountMetric);
+    }
+  }
+
+  /**
+   * @param {HTMLInputElement} input 
+   * @param {boolean} inputting 
+   */
+  async function handleTimingInput(input, inputting) {
     const isStartTime = input === animationStartTimeInput;
     const parseResult = util.parseOffsetValue(input);
     let value = parseResult?.seconds ?? 0;
     if (!isStartTime) value = Math.max(0, value);
 
-    if (overrideInputValue) {
+    if (!inputting) {
       input.value = parseResult?.toStringRep(value) ?? `${value}s`;
     }
+    
+    handleTimingInputImpliedUnit(input, parseResult?.timecountMetric);
 
     if (isStartTime) {
       ctrlValues.animationStartTime = value;
       await rerender();
     } else {
       ctrlValues.animationDuration = value;
-      await handleFrameInput(lastUsedFrameInput, true); // Does rerender()
+      await handleFrameInput(lastUsedFrameInput, false); // Does rerender()
     }
   }
 
   /**
    * @param {HTMLInputElement} input 
-   * @param {boolean} overrideInputValue 
+   * @param {boolean} inputting 
    */
-  async function handleFrameInput(input, overrideInputValue) {
+  async function handleFrameInput(input, inputting) {
     const isFps = input === animationFpsInput;
     const value = util.parsePositiveFloat(input) ?? (isFps ? DEFAULT_FPS : DEFAULT_FPS * ctrlValues.animationDuration);
 
@@ -230,15 +252,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     ctrlValues.animationTotalFrames = frames;
 
-    if (!isFps || overrideInputValue) {
+    if (!isFps || !inputting) {
       animationFpsInput.value = String(fps);
     }
 
-    if (isFps || overrideInputValue) {
+    if (isFps || !inputting) {
       animationTotalFramesInput.value = String(frames);
     }
 
-    lastUsedFrameInput = input;
+    if (inputting) {
+      lastUsedFrameInput = input;
+    }
 
     animationFrameInput.max = String(frames);
     await handleCurrentFrameInput(); // Does rerender()
@@ -259,13 +283,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * @param {boolean} overrideInputValue 
+   * @param {boolean} inputting 
    */
-  async function handleCurrentFrameValueInput(overrideInputValue) {
+  async function handleCurrentFrameValueInput(inputting) {
     const value = clampCurrentFrame(util.parsePositiveInt(animationFrameValueInput) ?? 1);
     animationFrameInput.value = String(value);
 
-    if (overrideInputValue) {
+    if (!inputting) {
       animationFrameValueInput.value = String(value);
     }
 
@@ -279,28 +303,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function setCurrentFrameAndRerender(frame) {
     frame = util.clamp(frame, 1, ctrlValues.animationTotalFrames);
     animationFrameValueInput.value = String(frame);
-    await handleCurrentFrameValueInput(true); // Does rerender()
+    await handleCurrentFrameValueInput(false); // Does rerender()
   }
 
   /**
    * @param {HTMLInputElement} input 
-   * @param {(input: HTMLInputElement, overrideInputValue: boolean) => void} callback 
+   * @param {(input: HTMLInputElement, inputting: boolean) => void} callback 
    */
   function makeTextInputEventListeners(input, callback) {
-    input.addEventListener('input', () => callback(input, false));
+    input.addEventListener('input', () => callback(input, true));
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
-        callback(input, true);
+        callback(input, false);
       }
     });
-    input.addEventListener('focusout', () => callback(input, true));
+    input.addEventListener('focusout', () => callback(input, false));
   }
 
   fileInput.addEventListener('change', () => loadImageAndRerender());
 
   makeTextInputEventListeners(widthInput, handleSizeInput);
   makeTextInputEventListeners(heightInput, handleSizeInput);
-  lockAspectInput.addEventListener('change', () => handleSizeInput(lastUsedSizeInput, true));
+  lockAspectInput.addEventListener('change', () => handleSizeInput(lastUsedSizeInput, false));
 
   enableAnimationInput.addEventListener('change', rerender);
 
@@ -433,7 +457,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         heightInput.value = String(originalHeight);
         ctrlValues.width = originalWidth;
         ctrlValues.height = originalHeight;
-        await handleSizeInput(lastUsedSizeInput, true); // Does rerender()
+        await handleSizeInput(lastUsedSizeInput, false); // Does rerender()
       } else {
         await rerender();
       }
@@ -581,5 +605,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize
   resetVars();
   resetCtrlValues();
+  handleTimingInputsImpliedUnits();
   loadImageAndRerender(false);
 });

@@ -161,8 +161,19 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-padlock .
 }
 
 .input-inline {
+  display: flex;
   color: var(--color-acc-light);
   font-weight: 600;
+}
+
+.implied-metric-display {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+:has(> .implied-metric) + .implied-metric-display {
+  pointer-events: all;
+  visibility: inherit;
 }
 
 .controls-section {
