@@ -1,4 +1,7 @@
 // @ts-check
+import * as util from './lib/util.mjs';
+import * as libSvg from './lib/svg.mjs';
+import { ZipWriter } from './lib/zip.mjs';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const MAX_IMAGE_SIZE = 4096;
@@ -26,11 +29,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
   const sandboxIFrame = /** @type {HTMLIFrameElement} */ (document.getElementById('sandbox'));
 
-  if (sandboxIFrame.loading) {
-    await new Promise(resolve => sandboxIFrame.addEventListener('load', resolve, { once: true }));
+  const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
+
+  if (sandboxDocument.readyState === 'loading') {
+    await new Promise(resolve => sandboxDocument.addEventListener('DOMContentLoaded', resolve, { once: true }));
   }
 
-  const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
   const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
   const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
@@ -68,13 +72,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ctrlValues = /** @type {any} */ ({});
 
   function resetCtrlValues() {
-    ctrlValues.width = lib.util.parsePositiveInt(widthInput) ?? DEFAULT_IMAGE_SIZE;
-    ctrlValues.height = lib.util.parsePositiveInt(heightInput) ?? DEFAULT_IMAGE_SIZE;
-    ctrlValues.animationStartTime = lib.util.parseOffsetValue(animationStartTimeInput)?.seconds ?? 0;
-    ctrlValues.animationDuration = lib.util.parseOffsetValue(animationDurationInput)?.seconds ?? DEFAULT_ANIMATION_DURATION;
-    ctrlValues.animationTotalFrames = lib.util.parsePositiveInt(animationTotalFramesInput)
+    ctrlValues.width = util.parsePositiveInt(widthInput) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.height = util.parsePositiveInt(heightInput) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.animationStartTime = util.parseOffsetValue(animationStartTimeInput)?.seconds ?? 0;
+    ctrlValues.animationDuration = util.parseOffsetValue(animationDurationInput)?.seconds ?? DEFAULT_ANIMATION_DURATION;
+    ctrlValues.animationTotalFrames = util.parsePositiveInt(animationTotalFramesInput)
       ?? DEFAULT_ANIMATION_DURATION * DEFAULT_FPS;
-    ctrlValues.animationDisplayFrame = lib.util.parsePositiveInt(animationFrameValueInput) ?? 1;
+    ctrlValues.animationDisplayFrame = util.parsePositiveInt(animationFrameValueInput) ?? 1;
   }
 
   const animationControls = [
@@ -142,7 +146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function handleSizeInput(input, overrideInputValue) {
     const isWidth = input === widthInput;
 
-    let value = lib.util.parsePositiveInt(input) ?? DEFAULT_IMAGE_SIZE;
+    let value = util.parsePositiveInt(input) ?? DEFAULT_IMAGE_SIZE;
 
     if (value > MAX_IMAGE_SIZE) {
       value = MAX_IMAGE_SIZE;
@@ -191,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function handleTimingInput(input, overrideInputValue) {
     const isStartTime = input === animationStartTimeInput;
-    const parseResult = lib.util.parseOffsetValue(input);
+    const parseResult = util.parseOffsetValue(input);
     let value = parseResult?.seconds ?? 0;
     if (!isStartTime) value = Math.max(0, value);
 
@@ -214,7 +218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    */
   async function handleFrameInput(input, overrideInputValue) {
     const isFps = input === animationFpsInput;
-    const value = lib.util.parsePositiveFloat(input) ?? (isFps ? DEFAULT_FPS : DEFAULT_FPS * ctrlValues.animationDuration);
+    const value = util.parsePositiveFloat(input) ?? (isFps ? DEFAULT_FPS : DEFAULT_FPS * ctrlValues.animationDuration);
 
     let fps = Math.min(isFps ? value : value / ctrlValues.animationDuration, MAX_FPS);
     let frames = Math.max(1, fps * ctrlValues.animationDuration);
@@ -244,7 +248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {number} value 
    */
   function clampCurrentFrame(value) {
-    return lib.util.clamp(value, 1, ctrlValues.animationTotalFrames);
+    return util.clamp(value, 1, ctrlValues.animationTotalFrames);
   }
 
   async function handleCurrentFrameInput() {
@@ -258,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {boolean} overrideInputValue 
    */
   async function handleCurrentFrameValueInput(overrideInputValue) {
-    const value = clampCurrentFrame(lib.util.parsePositiveInt(animationFrameValueInput) ?? 1);
+    const value = clampCurrentFrame(util.parsePositiveInt(animationFrameValueInput) ?? 1);
     animationFrameInput.value = String(value);
 
     if (overrideInputValue) {
@@ -273,7 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {number} frame 
    */
   async function setCurrentFrameAndRerender(frame) {
-    frame = lib.util.clamp(frame, 1, ctrlValues.animationTotalFrames);
+    frame = util.clamp(frame, 1, ctrlValues.animationTotalFrames);
     animationFrameValueInput.value = String(frame);
     await handleCurrentFrameValueInput(true); // Does rerender()
   }
@@ -342,10 +346,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const fps = ctrlValues.animationTotalFrames / ctrlValues.animationDuration;
       svg.setCurrentTime(ctrlValues.animationStartTime + (ctrlValues.animationDisplayFrame - 1) / fps);
 
-      const svgAnimationElements = lib.svg.getAllAnimationElements(svg);
+      const svgAnimationElements = libSvg.getAllAnimationElements(svg);
 
       if (enableAnimationInput.checked) {
-        lib.svg.applyAnimation(svg);
+        libSvg.applyAnimation(svg);
       }
 
       // The renderer will use some values from animation elements if they are not removed
@@ -418,7 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       originalHeight = image.height;
       for (const c of allControls) c.disabled = false;
 
-      const isAnimatedSvg = lib.svg.getAllAnimationElements(svg).length > 0;
+      const isAnimatedSvg = libSvg.getAllAnimationElements(svg).length > 0;
       enableAnimationInput.disabled = !isAnimatedSvg;
       enableAnimationInput.checked = isAnimatedSvg && (setControlsToDefaults || enableAnimationInput.checked);
 
@@ -511,7 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function saveCurrentFrame(fileNameSuffix = '') {
-    lib.util.saveFile(await getFrameBlob(), fileName + fileNameSuffix);
+    util.saveFile(await getFrameBlob(), fileName + fileNameSuffix);
   }
 
   async function saveSequence() {
@@ -525,7 +529,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       c.disabled = true;
     }
 
-    const zipWriter = new lib.zip.ZipWriter();
+    const zipWriter = new ZipWriter();
     const suffixLength = String(ctrlValues.animationTotalFrames).length;
 
     /**
@@ -544,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pauseAnimation();
       rerender();
 
-      lib.util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
+      util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
     }
 
     await setCurrentFrameAndRerender(1);
