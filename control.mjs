@@ -76,13 +76,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ctrlValues = /** @type {any} */ ({});
 
   function resetCtrlValues() {
-    ctrlValues.width = util.parsePositiveInt(widthInput) ?? DEFAULT_IMAGE_SIZE;
-    ctrlValues.height = util.parsePositiveInt(heightInput) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.width = util.parsePositiveInt(widthInput, false) ?? DEFAULT_IMAGE_SIZE;
+    ctrlValues.height = util.parsePositiveInt(heightInput, false) ?? DEFAULT_IMAGE_SIZE;
     ctrlValues.animationStartTime = util.parseOffsetValue(animationStartTimeInput)?.seconds ?? 0;
     ctrlValues.animationDuration = util.parseOffsetValue(animationDurationInput)?.seconds ?? DEFAULT_ANIMATION_DURATION;
-    ctrlValues.animationTotalFrames = util.parsePositiveInt(animationTotalFramesInput)
+    ctrlValues.animationTotalFrames = util.parsePositiveInt(animationTotalFramesInput, false)
       ?? DEFAULT_ANIMATION_DURATION * DEFAULT_FPS;
-    ctrlValues.animationDisplayFrame = util.parsePositiveInt(animationFrameValueInput) ?? 1;
+    ctrlValues.animationDisplayFrame = util.parsePositiveInt(animationFrameValueInput, false) ?? 1;
   }
 
   const animationControls = [
@@ -150,11 +150,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function handleSizeInput(input, inputting) {
     const isWidth = input === widthInput;
 
-    let value = util.parsePositiveInt(input) ?? DEFAULT_IMAGE_SIZE;
-
-    if (value > MAX_IMAGE_SIZE) {
-      value = MAX_IMAGE_SIZE;
-    }
+    let value = util.parsePositiveInt(input, false) ?? DEFAULT_IMAGE_SIZE;
+    value = Math.min(value, MAX_IMAGE_SIZE);
 
     if (lockAspectInput.checked) {
       const valueToOtherValue = isWidth ? 1 / aspectRatio() : aspectRatio();
@@ -286,7 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {boolean} inputting 
    */
   async function handleCurrentFrameValueInput(inputting) {
-    const value = clampCurrentFrame(util.parsePositiveInt(animationFrameValueInput) ?? 1);
+    const value = clampCurrentFrame(util.parsePositiveInt(animationFrameValueInput, false) ?? 1);
     animationFrameInput.value = String(value);
 
     if (!inputting) {
