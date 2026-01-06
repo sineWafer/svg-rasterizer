@@ -131,6 +131,46 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-padlock .
   transition: transform var(--transition-time) cubic-bezier(.19, .56, 0, 1.43);
 }
 
+.svg-checkbox-switch .dragger {
+  transition:
+    cx var(--transition-time) cubic-bezier(0.34, 1.56, 0.64, 1),
+    r var(--transition-time);
+}
+
+.svg-checkbox-switch .tracker {
+  transition: fill-opacity var(--transition-time);
+}
+
+input[type="checkbox"]:enabled + .checkbox-replacement:hover > .svg-checkbox-switch .dragger {
+  r: 3px;
+}
+
+input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .tracker {
+  fill-opacity: .4;
+}
+
+input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .dragger {
+  cx: 16px;
+}
+
+.animated-label:has(+ * input:hover) .svg-icon-animation :first-child {
+  animation: icon-animation-hover ease .8s alternate infinite;
+}
+
+.animated-label:has(+ * input:hover) .svg-icon-animation :nth-child(2) {
+  animation: icon-animation-hover ease .8s .2s alternate infinite;
+}
+
+@keyframes icon-animation-hover {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(2px);
+  }
+}
+
 .vbox {
   display: flex;
   flex-direction: row;
