@@ -33,12 +33,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
   const sandboxIFrame = /** @type {HTMLIFrameElement} */ (document.getElementById('sandbox'));
 
-  const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
-
-  if (sandboxDocument.readyState === 'loading') {
-    await new Promise(resolve => sandboxDocument.addEventListener('DOMContentLoaded', resolve, { once: true }));
+  {
+    sandboxIFrame.src = '/sandbox.html';
+    await new Promise(resolve => sandboxIFrame.addEventListener('load', resolve, { once: true }));
   }
-
+  
+  const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
   const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
   const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
 
