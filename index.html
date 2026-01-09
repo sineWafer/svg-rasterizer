@@ -133,13 +133,28 @@
       <div class="sidebar-spacer"></div>
 
       <div class="controls-section">
-        <button id="view-animation-play-pause">Play/Pause</button>
-        <input type="range" id="view-animation-frame" step="1" min="1">
-        <input type="text" id="view-animation-frame-value">
+        <button id="view-animation-play-pause" class="small-icon-button">
+          <svg class="svg-play-state" width="100%" height="100%" viewBox="0 0 12 12"
+            xmlns="http://www.w3.org/2000/svg">
+            <path class="play" d="M2,1 l8,5 l-8,5 Z" fill="currentColor" />
+            <path class="pause" d="M2,1 h3 v10 h-3 Z" fill="currentColor" />
+            <path class="pause" d="M7,1 h3 v10 h-3 Z" fill="currentColor" />
+          </svg>
+        </button>
+        <input type="range" id="view-animation-frame" class="no-visual-disable" step="1" min="1">
+        <div></div>
+        <div></div>
+        <div class="controls-section-split">
+          <input type="text" id="view-animation-frame-value" class="no-visual-disable">
+          <label id="view-animation-time-label" class="input-inline no-visual-disable"
+            for="view-animation-frame-value"></label>
+        </div>
+        <div></div>
       </div>
+
+      <div class="sidebar-spacer"></div>
     </div>
 
-    <div class="sidebar-spacer"></div>
 
     <div class="save-section">
       <button id="save">Save</button>

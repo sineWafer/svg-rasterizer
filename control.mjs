@@ -6,6 +6,7 @@ import { ZipWriter } from './lib/zip.mjs';
 document.addEventListener('DOMContentLoaded', async () => {
   const CLASSES = /** @type {const} */ {
     INPUT_UNIT_IMPLIED: 'implied-metric',
+    ANIMATION_PAUSABLE: 'animation-pausable',
   };
 
   const MAX_IMAGE_SIZE = 4096;
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const animationPlayPauseButton = /** @type {HTMLButtonElement} */ (document.getElementById('view-animation-play-pause'));
   const animationFrameInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-frame'));
   const animationFrameValueInput = /** @type {HTMLInputElement} */ (document.getElementById('view-animation-frame-value'));
+  const animationTimeLabel = /** @type {HTMLElement} */ (document.getElementById('view-animation-time-label'));
   const saveButton = /** @type {HTMLButtonElement} */ (document.getElementById('save'));
   const saveSequenceButton = /** @type {HTMLButtonElement} */ (document.getElementById('save-sequence'));
   const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'));
@@ -359,13 +361,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function rerender() {
+    /** @type {number?} */ let currentTime;
+
     if (svgContent === null) {
       image.src = '';
+      currentTime = null;
     } else {
       const svg = applySvgContent(svgContent);
 
       const fps = ctrlValues.animationTotalFrames / ctrlValues.animationDuration;
-      svg.setCurrentTime(ctrlValues.animationStartTime + (ctrlValues.animationDisplayFrame - 1) / fps);
+      currentTime = ctrlValues.animationStartTime + (ctrlValues.animationDisplayFrame - 1) / fps;
+      svg.setCurrentTime(currentTime);
 
       const svgAnimationElements = libSvg.getAllAnimationElements(svg);
 
@@ -389,6 +395,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     canvas.width = ctrlValues.width;
     canvas.height = ctrlValues.height;
     renderingContext.drawImage(image, 0, 0, ctrlValues.width, ctrlValues.height);
+
+    animationTimeLabel.innerText = currentTime === null ? '' : util.toDisplayTimeDelta(currentTime);
   }
 
   /**
@@ -470,7 +478,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       pauseAnimation();
     }
 
+    animationFrameInput.disabled = true;
     animationFrameValueInput.disabled = true;
+    animationPlayPauseButton.classList.add(CLASSES.ANIMATION_PAUSABLE);
 
     let timeMs = performance.now();
 
@@ -514,7 +524,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (playAnimTimeoutHandle === null) return;
     clearTimeout(playAnimTimeoutHandle);
     playAnimTimeoutHandle = null;
+    animationFrameInput.disabled = false;
     animationFrameValueInput.disabled = false;
+    animationPlayPauseButton.classList.remove(CLASSES.ANIMATION_PAUSABLE);
   }
 
   function togglePreviewAnimation() {
@@ -588,7 +600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resetCtrlValues();
     canvas.style.opacity = '0';
     
-    // Do we need extra stretching?
+    // Do we need stretch manually?
     ctrlValues.width = 100;
     ctrlValues.height = 1;
     await loadImageAndRerender(false, testSvg.outerHTML);

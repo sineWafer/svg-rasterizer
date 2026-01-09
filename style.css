@@ -55,6 +55,12 @@ button:enabled:active {
   filter: brightness(1.2);
 }
 
+.small-icon-button {
+  width: 1lh;
+  height: 1lh;
+  padding: .05rem;
+}
+
 input {
   padding: var(--input-v-padding) .5rem;
   border-width: 0;
@@ -71,14 +77,15 @@ input {
 
 label {
   user-select: none;
+  text-align: center;
 }
 
 input[type="file"] {
   box-sizing: border-box;
+  flex-grow: 1;
   flex-shrink: 0;
   flex-grow: 0;
 
-  width: 100%;
   height: 4rem;
   padding: 0 1rem;
   border-width: .1rem;
@@ -107,12 +114,21 @@ input[type="text"] {
   cursor: text;
 }
 
+input[type="range"] {
+  width: 100%;
+  margin: 0;
+  border-width: 0;
+  padding: 0;
+
+  border-radius: var(--input-border-radius);
+}
+
 input[type="checkbox"],
 input[type="checkbox"]:focus-visible {
   max-width: 0;
   max-height: 0;
   margin: 0;
-  border-radius: 0;
+  border-width: 0;
   padding: 0;
 
   outline: none;
@@ -136,10 +152,15 @@ input[type="checkbox"]:focus + .checkbox-replacement {
   outline-offset: .1rem;
 }
 
-input:disabled,
-:has(input:disabled) + .input-inline,
-input:disabled + label,
-label:has(+ * > input:disabled) {
+input:disabled {
+  cursor: default;
+}
+
+input:disabled:not(.no-visual-disable),
+:has(input:disabled) + .input-inline:not(.no-visual-disable),
+input:disabled + .checkbox-replacement,
+label:has(+ * > input:disabled),
+button:disabled {
   cursor: default;
   filter: blur(1.5px);
 }
@@ -201,8 +222,19 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
   }
 }
 
+.svg-play-state .pause {
+  visibility: hidden;
+}
+
+.animation-pausable > .svg-play-state .play {
+  visibility: hidden;
+}
+
+.animation-pausable > .svg-play-state .pause {
+  visibility: visible;
+}
+
 .input-inline {
-  display: flex;
   color: var(--color-acc-light);
   font-weight: 600;
 }
@@ -219,7 +251,8 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
 
 .controls-section {
   display: grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: 1lh 1fr 1lh;
+  align-items: center;
   gap: .5rem;
 }
 
@@ -229,12 +262,20 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
   align-items: center;
 }
 
-.controls-section > :is(:nth-child(3n), :nth-child(3n + 1)) {
-  width: 1lh;
-}
-
 .controls-section > * > input {
   width: 100%;
+}
+
+.controls-section-split {
+  display: flex;
+  flex-direction: row;
+  gap: .5rem;
+}
+
+.controls-section-split > * {
+  flex-grow: 1;
+  flex-shrink: 0;
+  flex-basis: 0;
 }
 
 .label-control {
@@ -255,7 +296,7 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
 
   transition:
     max-height var(--transition-time),
-    transform var(--transition-time),
+    transform var(--transition-time) cubic-bezier(0.46, 1.26, 0.64, 1),
     opacity var(--transition-time);
 }
 
