@@ -152,8 +152,8 @@ input[type="checkbox"]:focus + .checkbox-replacement {
   outline-offset: .1rem;
 }
 
-input:disabled {
-  cursor: default;
+input.no-visual-disable:disabled {
+  cursor: not-allowed
 }
 
 input:disabled:not(.no-visual-disable),
@@ -204,11 +204,11 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
   cx: 16px;
 }
 
-.animated-label:has(+ * input:hover) .svg-icon-animation :first-child {
+.animated-label:has(+ * input:enabled:hover) .svg-icon-animation :first-child {
   animation: icon-animation-hover ease .8s alternate infinite;
 }
 
-.animated-label:has(+ * input:hover) .svg-icon-animation :nth-child(2) {
+.animated-label:has(+ * input:enabled:hover) .svg-icon-animation :nth-child(2) {
   animation: icon-animation-hover ease .8s .2s alternate infinite;
 }
 
