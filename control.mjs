@@ -1,7 +1,7 @@
 // @ts-check
 import * as util from './lib/util.mjs';
 import * as libSvg from './lib/svg.mjs';
-import { ZipWriter } from './lib/zip.mjs';
+import ZipWriter from './lib/zip.mjs';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const CLASSES = /** @type {const} */ {
@@ -194,6 +194,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     await rerender();
   }
 
+  async function handleEnableAnimationInput(doRerender = true) {
+    for (const ctrl of animationControls) {
+      ctrl.disabled = !enableAnimationInput.checked;
+    }
+
+    if (doRerender) {
+      await rerender();
+    }
+  }
+
   /**
    * @param {HTMLInputElement} input 
    * @param {string | null | undefined} timecountMetric 
@@ -325,7 +335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   makeTextInputEventListeners(heightInput, handleSizeInput);
   lockAspectInput.addEventListener('change', () => handleSizeInput(lastUsedSizeInput, false));
 
-  enableAnimationInput.addEventListener('change', rerender);
+  enableAnimationInput.addEventListener('change', () => handleEnableAnimationInput());
 
   makeTextInputEventListeners(animationStartTimeInput, handleTimingInput);
   makeTextInputEventListeners(animationDurationInput, handleTimingInput);
@@ -454,6 +464,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const isAnimatedSvg = libSvg.getAllAnimationElements(svg).length > 0;
       enableAnimationInput.disabled = !isAnimatedSvg;
       enableAnimationInput.checked = isAnimatedSvg && (setControlsToDefaults || enableAnimationInput.checked);
+      handleEnableAnimationInput(false);
 
       resetCurrentFrame();
 

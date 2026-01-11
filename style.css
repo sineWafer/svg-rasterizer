@@ -293,10 +293,11 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
 
   opacity: 0;
   pointer-events: none;
+  overflow: hidden;
 
   transition:
     max-height var(--transition-time),
-    transform var(--transition-time) cubic-bezier(0.46, 1.26, 0.64, 1),
+    transform var(--transition-time) cubic-bezier(.46, 1.26, .64, 1),
     opacity var(--transition-time);
 }
 
@@ -307,6 +308,7 @@ body:has(#setting-enable-animation:checked) .animation-controls-section {
 
   opacity: 1;
   pointer-events: all;
+  overflow: visible;
 }
 
 .animation-control {
@@ -374,7 +376,7 @@ body {
   border-style: solid;
   border-color: var(--color-acc);
   overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 #main {
@@ -384,7 +386,7 @@ body {
   justify-content: center;
   align-items: center;
 
-  overflow: scroll;
+  overflow: auto;
 }
 
 #main-canvas {
