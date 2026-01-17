@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   {
+    // Responsive layout
+
+    const MIN_WIDTH_FOR_WIDE_MODE = 600;
+
+    function updateResponsiveSize() {
+      document.body.classList.toggle('narrow-mode', document.body.clientWidth < MIN_WIDTH_FOR_WIDE_MODE);
+    }
+
+    updateResponsiveSize();
+    window.addEventListener('resize', updateResponsiveSize);
+  }
+
+  {
     // Scroll overflowing content by clicking and dragging
 
     /** @type {HTMLElement?} */ let dragScrollableElement = null;

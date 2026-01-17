@@ -388,6 +388,10 @@ body {
   height: 100vh;
 }
 
+body.narrow-mode {
+  flex-direction: column;
+}
+
 #sidebar,
 .sidebar-over {
   display: flex;
@@ -425,6 +429,12 @@ body {
   overflow-y: auto;
 }
 
+body.narrow-mode #sidebar {
+  width: 100%;
+
+  overflow: visible;
+}
+
 #main {
   flex-grow: 1;
   flex-basis: 0;
@@ -434,6 +444,12 @@ body {
   text-align: center;
 
   overflow: auto;
+}
+
+body.narrow-mode #main {
+  min-height: 16rem;
+
+  overflow: scroll;
 }
 
 #main-canvas {
