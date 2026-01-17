@@ -12,6 +12,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   {
+    // Scroll overflowing content by clicking and dragging
+
+    /** @type {HTMLElement?} */ let dragScrollableElement = null;
+
+    for (const scrollable of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('.click-drag-scroll'))) {
+      scrollable.addEventListener('pointerdown', e => {
+        if (e.target === scrollable) return; // Only scroll when children are grabbed, especially so scrollbars can still be used
+        const horizontal = scrollable.clientWidth < scrollable.scrollWidth;
+        const vertical = scrollable.clientHeight < scrollable.scrollHeight;
+        if (!horizontal && !vertical) return;
+        dragScrollableElement = scrollable;
+        dragScrollableElement.setPointerCapture(e.pointerId);
+        dragScrollableElement.style.cursor = horizontal ? (vertical ? 'move' : 'ew-resize') : 'ns-resize';
+      });
+    }
+
+    document.addEventListener('pointerup', e => {
+      if (dragScrollableElement === null) return;
+      dragScrollableElement.releasePointerCapture(e.pointerId);
+      dragScrollableElement.style.cursor = '';
+      dragScrollableElement = null;
+    });
+
+    document.addEventListener('pointermove', e => {
+      if (dragScrollableElement === null) return;
+      dragScrollableElement.scrollLeft -= e.movementX;
+      dragScrollableElement.scrollTop -= e.movementY;
+    });
+  }
+
+  {
     // Handle tooltips (little bit more flexible than [title])
 
     const TOOLTIP_APPEAR_TIMEOUT_MS = 500;
