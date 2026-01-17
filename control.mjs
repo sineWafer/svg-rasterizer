@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const DEFAULT_ANIMATION_DURATION = 4;
   const DEFAULT_FPS = 30;
   const MAX_FPS = 1024;
+  const MAX_FRAME_COUNT = 36000;
   /** @type {boolean} */ let NEEDS_STRETCHING_ADJUSTMENT;
 
   const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-file'));
@@ -257,10 +258,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const value = util.parsePositiveFloat(input) ?? (isFps ? DEFAULT_FPS : DEFAULT_FPS * ctrlValues.animationDuration);
 
     let fps = Math.min(isFps ? value : value / ctrlValues.animationDuration, MAX_FPS);
-    let frames = Math.max(1, fps * ctrlValues.animationDuration);
+    let frames = util.clamp(fps * ctrlValues.animationDuration, 1, MAX_FRAME_COUNT);
 
     if (ctrlValues.animationDuration <= EPSILON) {
-      fps = 0;
       frames = 1;
     }
 
