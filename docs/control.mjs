@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sandboxIFrame = /** @type {HTMLIFrameElement} */ (document.getElementById('sandbox'));
 
   {
-    sandboxIFrame.src = '/sandbox.html';
+    sandboxIFrame.src = './sandbox.html';
     await new Promise(resolve => sandboxIFrame.addEventListener('load', resolve, { once: true }));
   }
 
