@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const heightInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-height'));
   const lockAspectInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-lock-aspect'));
   const enableAnimationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-enable-animation'));
+  const enableAnimationTooltipWrapper = /** @type {HTMLElement} */ (document.getElementById('tooltip-wrapper-enable-animation'));
   const animationStartTimeInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-start-time'));
   const animationDurationInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-duration'));
   const animationFpsInput = /** @type {HTMLInputElement} */ (document.getElementById('setting-animation-fps'));
@@ -464,6 +465,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const isAnimatedSvg = libSvg.getAllAnimationElements(svg).length > 0;
       enableAnimationInput.disabled = !isAnimatedSvg;
       enableAnimationInput.checked = isAnimatedSvg && (setControlsToDefaults || enableAnimationInput.checked);
+      enableAnimationTooltipWrapper.setAttribute(
+        'tooltip',
+        enableAnimationTooltipWrapper.getAttribute(isAnimatedSvg ? 'tooltip-animated' : 'tooltip-not-animated') ?? ''
+      );
       handleEnableAnimationInput(false);
 
       resetCurrentFrame();

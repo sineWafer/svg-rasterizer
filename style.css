@@ -9,8 +9,9 @@
 
   --transition-time: 200ms;
 
-  --input-border-radius: .2rem;
   --input-v-padding: .2rem;
+  --input-h-padding: .5rem;
+  --input-border-radius: .2rem;
 
   font-size: 22px;
   font-family: var(--font-family);
@@ -25,13 +26,17 @@
   color: var(--color-acc);
 }
 
+svg {
+  pointer-events: none;
+}
+
 button {
-  padding: var(--input-v-padding) .5rem;
+  padding: var(--input-v-padding) var(--input-h-padding);
   border-width: .1rem;
-  border-style: outset;
 
   border-radius: var(--input-border-radius);
   border-color: var(--color-sec);
+  border-style: outset;
   color: var(--color-sec);
   background-color: var(--color-acc);
   font-size: 1rem;
@@ -62,7 +67,8 @@ button:enabled:active {
 }
 
 input {
-  padding: var(--input-v-padding) .5rem;
+  box-sizing: border-box;
+  padding: var(--input-v-padding) var(--input-h-padding);
   border-width: 0;
 
   border-radius: var(--input-border-radius);
@@ -78,6 +84,12 @@ input {
 label {
   user-select: none;
   text-align: center;
+}
+
+label:has(> svg) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 input[type="file"] {
@@ -256,13 +268,15 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
   gap: .5rem;
 }
 
-.controls-section > * {
+.controls-section > :not(.tooltip-wrapper),
+.controls-section > .tooltip-wrapper > * {
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.controls-section > * > input {
+.controls-section > * > input,
+.controls-section > .tooltip-wrapper > * > input {
   width: 100%;
 }
 
@@ -329,6 +343,32 @@ body:has(#setting-enable-animation:checked) .animation-control {
   flex-grow: 1;
 }
 
+.tooltip-wrapper {
+  display: contents;
+}
+
+.tooltip-display {
+  position: fixed;
+
+  max-width: 10rem;
+  margin-top: .5rem;
+  margin-left: .7rem;
+  padding: .1rem .2rem;
+  border-width: .05rem;
+
+  border-radius: .15rem;
+  border-color: var(--color-acc-light);
+  border-style: solid;
+  color: var(--color-sec);
+  background-color: var(--color-prim);
+  font-size: .6rem;
+  font-weight: 400;
+  z-index: 1;
+  pointer-events: none;
+
+  transition: opacity var(--transition-time);
+}
+
 html,
 body {
   padding: 0;
@@ -370,6 +410,8 @@ body {
 }
 
 #sidebar {
+  box-sizing: border-box;
+
   width: 16rem;
   border-width: .1rem;
 
