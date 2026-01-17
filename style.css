@@ -426,11 +426,12 @@ body {
 }
 
 #main {
-  display: flex;
   flex-grow: 1;
   flex-basis: 0;
-  justify-content: center;
-  align-items: center;
+
+  /* Using flex messes with the overflow, not showing the whole contents */
+  align-content: center;
+  text-align: center;
 
   overflow: auto;
 }
