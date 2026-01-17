@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const CLASSES = /** @type {const} */ {
     INPUT_UNIT_IMPLIED: 'implied-metric',
     ANIMATION_PAUSABLE: 'animation-pausable',
+    ANIMATION_CANCELABLE: 'animation-cancelable',
   };
 
   const MAX_IMAGE_SIZE = 4096;
@@ -40,7 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     sandboxIFrame.src = '/sandbox.html';
     await new Promise(resolve => sandboxIFrame.addEventListener('load', resolve, { once: true }));
   }
-  
+
   const sandboxDocument = /** @type {Document} */ (sandboxIFrame.contentDocument);
   const sandboxSvgContainer = /** @type {HTMLElement} */ (sandboxDocument.getElementById('svg-container'));
   const renderingContext = /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d'));
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   /** @type {HTMLInputElement} */ let lastUsedFrameInput;
   /** @type {string} */ let fileName;
   /** @type {number?} */ let playAnimTimeoutHandle;
+  /** @type {(() => void)?} */ let onAnimationPause = null;
 
   function resetVars() {
     svgContent = null;
@@ -232,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!inputting) {
       input.value = parseResult?.toStringRep(value) ?? `${value}s`;
     }
-    
+
     handleTimingInputImpliedUnit(input, parseResult?.timecountMetric);
 
     if (isStartTime) {
@@ -487,16 +489,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * @param {'all frames' | 'real time'} mode 
+   * @param {'pausable' | 'cancelable'} pauseButtonBehavior
    * @param {((frame: number) => void | Promise<any>) | null} onFrameRendered 
    */
-  function playAnimation(mode, onFrameRendered = null) {
+  function playAnimation(mode, pauseButtonBehavior, onFrameRendered = null) {
     if (playAnimTimeoutHandle !== null) {
       pauseAnimation();
     }
 
     animationFrameInput.disabled = true;
     animationFrameValueInput.disabled = true;
-    animationPlayPauseButton.classList.add(CLASSES.ANIMATION_PAUSABLE);
+    animationPlayPauseButton.classList.add(
+      pauseButtonBehavior === 'pausable' ? CLASSES.ANIMATION_PAUSABLE : CLASSES.ANIMATION_CANCELABLE
+    );
 
     let timeMs = performance.now();
 
@@ -543,13 +548,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     animationFrameInput.disabled = false;
     animationFrameValueInput.disabled = false;
     animationPlayPauseButton.classList.remove(CLASSES.ANIMATION_PAUSABLE);
+    animationPlayPauseButton.classList.remove(CLASSES.ANIMATION_CANCELABLE);
+    onAnimationPause?.();
   }
 
   function togglePreviewAnimation() {
     if (playAnimTimeoutHandle !== null) {
       pauseAnimation();
     } else {
-      playAnimation('real time');
+      playAnimation('real time', 'pausable');
     }
   }
 
@@ -573,8 +580,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const controlsActiveState = allControls.map(c => ({ control: c, disabled: c.disabled }));
-    for (const c of allControls) {
+    const controlsToDisable = allControls.filter(c => c !== animationPlayPauseButton);
+    const controlsActiveState = controlsToDisable.map(c => ({ control: c, disabled: c.disabled }));
+    let renderFinished = false;
+
+    for (const c of controlsToDisable) {
       c.disabled = true;
     }
 
@@ -590,20 +600,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (frame < ctrlValues.animationTotalFrames) return;
 
+      renderFinished = true;
+      pauseAnimation();
+    }
+
+    onAnimationPause = () => {
       for (const state of controlsActiveState) {
         state.control.disabled = state.disabled;
       }
 
-      pauseAnimation();
       rerender();
 
-      util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
-    }
+      if (renderFinished) {
+        util.saveFile(URL.createObjectURL(zipWriter.toBlob()), fileName);
+      }
+    };
 
     await setCurrentFrameAndRerender(1);
     await doUpdate(1);
 
-    playAnimation('all frames', doUpdate);
+    playAnimation('all frames', 'cancelable', doUpdate);
   }
 
   // Feature test
@@ -615,7 +631,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     resetVars();
     resetCtrlValues();
     canvas.style.opacity = '0';
-    
+
     // Do we need stretch manually?
     ctrlValues.width = 100;
     ctrlValues.height = 1;

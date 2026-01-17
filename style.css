@@ -234,15 +234,19 @@ input[type="checkbox"]:checked + .checkbox-replacement > .svg-checkbox-switch .d
   }
 }
 
-.svg-play-state .pause {
+.svg-play-state :is(.pause, .cancel) {
   visibility: hidden;
 }
 
-.animation-pausable > .svg-play-state .play {
+:is(.animation-pausable, .animation-cancelable) > .svg-play-state .play {
   visibility: hidden;
 }
 
 .animation-pausable > .svg-play-state .pause {
+  visibility: visible;
+}
+
+.animation-cancelable > .svg-play-state .cancel {
   visibility: visible;
 }
 
