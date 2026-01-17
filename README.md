@@ -1,6 +1,7 @@
 # SVG Rasterizer
 
 Small static web app that uses the browser to render SVG files, which can then be exported as raster graphics.
+Access the site [here](https://sinewafer.github.io/svg-rasterizer/).
 
 - Supports SVGs with [SMIL](https://developer.mozilla.org/docs/Web/SVG/Guides/SVG_animation_with_SMIL) animation by freezing computed DOM attribute values before rendering to the canvas for display and export.
 - The output image can be resized and its aspect ratio can be changed.
