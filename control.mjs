@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     INPUT_UNIT_IMPLIED: 'implied-metric',
     ANIMATION_PAUSABLE: 'animation-pausable',
     ANIMATION_CANCELABLE: 'animation-cancelable',
+    SHOW_TOOLTIP_WHEN_DISABLED: 'show-tooltip-disabled',
   };
 
   const MAX_IMAGE_SIZE = 4096;
@@ -134,6 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     animationFrameInput.max = totalFramesStr;
     resetCtrlValues();
     for (const c of allControlsExceptFileInputs) c.disabled = true;
+    enableAnimationTooltipWrapper.classList.remove(CLASSES.SHOW_TOOLTIP_WHEN_DISABLED);
   }
 
   function resetCurrentFrame() {
@@ -471,6 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'tooltip',
         enableAnimationTooltipWrapper.getAttribute(isAnimatedSvg ? 'tooltip-animated' : 'tooltip-not-animated') ?? ''
       );
+      enableAnimationTooltipWrapper.classList.add(CLASSES.SHOW_TOOLTIP_WHEN_DISABLED);
       handleEnableAnimationInput(false);
 
       resetCurrentFrame();

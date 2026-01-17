@@ -32,14 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    document.addEventListener('mousemove', event => {
+    document.addEventListener('pointermove', event => {
       hideTooltip();
 
       if (!(event.target instanceof HTMLElement)) return;
 
       const element = /** @type {HTMLElement} */ (event.target);
-      const closest = element.closest('[tooltip]:not(:disabled)');
-      const tooltip = !closest || closest.querySelector(':disabled') ? null : closest.getAttribute('tooltip');
+      const closest = element.closest('[tooltip]:is(:not(:disabled), .show-tooltip-disabled)');
+      const tooltip = !closest || !closest.classList.contains('show-tooltip-disabled') && closest.querySelector(':disabled')
+        ? null
+        : closest.getAttribute('tooltip');
 
       if (tooltip == null) {
         tooltipDisplay.style.opacity = '0';
